@@ -63,7 +63,8 @@ async function ashby(company: string, token: string): Promise<Job[]> {
     const text = j.descriptionPlain || htmlToText(j.descriptionHtml ?? "");
     return {
       id: `ab:${token}:${j.id}`, company, title: j.title, location: locs.join("; "),
-      remote: !!j.isRemote || j.workplaceType === "Remote" || /remote/i.test(locs.join(" ")),
+      // Ashby sets isRemote on some hybrid/on-site jobs, so workplaceType wins when present.
+      remote: j.workplaceType ? j.workplaceType === "Remote" : !!j.isRemote || /remote/i.test(locs.join(" ")),
       url: j.jobUrl, posted: day(j.publishedAt),
       pay: j.compensation?.compensationTierSummary || j.compensation?.scrapeableCompensationSalarySummary || payFromText(text), text,
     };
