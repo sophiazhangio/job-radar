@@ -19,6 +19,7 @@ npm run scan                      # 抓全部公司，按匹配度排序，报�
 npm run scan -- --top 50          # 终端多显示几个
 npm run scan -- --company quora   # 只抓某家公司
 npm run scan -- --loose           # 也显示没写级别/年限的职位
+npm run scan -- --dump            # 另外把抓到的所有职位写到 out/all/日期.jsonl
 npm run match -- <职位链接>       # 给单个职位打分（Greenhouse/Ashby/Lever 链接最准，其他网页也能试）
 npm run match -- job.txt          # 把 JD 复制进 txt 文件也行
 npm run skills                    # 看简历里认出了哪些技能
@@ -28,6 +29,7 @@ npm run open                      # 打开网页报告
 每次 `scan` 都会生成：
 - `out/report.html`：网页报告，每次覆盖成最新结果。`npm run open` 或双击打开，可以按地点、匹配度筛选，按分数或日期排序，搜索，点开看详情。纯本地文件，不联网，不用 AI。
 - `out/日期.md` 和 `out/日期.json`：文字版报告，保留最近 `keepDays` 天（默认 7，在 `config.local.json` 里改；设成 0 只留当天）。
+- `out/all/日期.jsonl`：只在加 `--dump` 或配置里 `"dump": true` 时生成，抓到的全部职位，一行一个 JSON。保留 `dumpKeepDays` 天（默认 30）。[job-market-search](https://github.com/sophiazhangio/job-market-search) 用它做语义搜索和技能趋势。
 
 某个职位第一次出现的那一天会标 **NEW**（记录在 `.cache/seen.json`）。
 

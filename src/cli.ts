@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // job-radar: pull entry-level postings from public job boards and score them against your resume.
 //
-//   node src/cli.ts scan [--top 30] [--all] [--anywhere] [--company Quora]
+//   node src/cli.ts scan [--top 30] [--all] [--anywhere] [--company Quora] [--dump]
 //   node src/cli.ts match <job URL or .txt file>
 //   node src/cli.ts skills
 
@@ -28,7 +28,7 @@ if (!cfgPath) {
   console.error("No config.local.json yet. Copy the template and edit it:\n  cp config.example.json config.local.json");
   process.exit(1);
 }
-const cfg: Config & { resume: string; keepDays?: number } = JSON.parse(await readFile(cfgPath, "utf8"));
+const cfg: Config & { resume: string; keepDays?: number; dump?: boolean; dumpKeepDays?: number } = JSON.parse(await readFile(cfgPath, "utf8"));
 const resumePath = resolve(ROOT, opt("resume") ?? cfg.resume);
 
 async function loadResume(): Promise<Resume> {
@@ -106,6 +106,7 @@ async function scan() {
   await writeFile(resolve(ROOT, `out/${date}.json`), JSON.stringify(kept.map(r => ({ ...r, job: { ...r.job, text: undefined }, new: isNew(r.job.id) })), null, 2));
   const page = resolve(ROOT, "out/report.html");
   await writeFile(page, toHtml(kept.map(r => ({ ...r, isNew: isNew(r.job.id) })), { date, fetched: jobs.length, companies: list.length, errors, trackedFile: tracked?.file ?? "" }));
+  if (flag("dump") || cfg.dump) await dumpAll(jobs, date);
   for (const r of kept) firstSeen[r.job.id] ??= date;
   await writeFile(cacheFile, JSON.stringify(firstSeen));
 
@@ -123,6 +124,30 @@ async function scan() {
   if (tracked) console.log(`追踪表：读了 ${tracked.file}（${tracked.jobs.length} 个职位，这次结果里出现 ${kept.filter(r => r.tracked).length} 个）`);
   else console.log(`${C.dim}没找到 tracked.json。想在报告里标出已投的职位，去追踪表点「导出给 job-radar」。${C.r}`);
   if (errors.length) console.log(`${C.y}${errors.length} 家公司没抓到，详见报告末尾。${C.r}`);
+}
+
+// Write every fetched posting (not just the ones that pass the filters) as one JSON object per line.
+// Used by job-market-search for semantic search and trends. Kept for dumpKeepDays days (default 30).
+async function dumpAll(jobs: Job[], date: string) {
+  const dir = resolve(ROOT, "out/all");
+  await mkdir(dir, { recursive: true });
+  const seenIds = new Set<string>();
+  const lines: string[] = [];
+  for (const j of jobs) {
+    if (seenIds.has(j.id)) continue;
+    seenIds.add(j.id);
+    const { id, company, title, location, remote, url, posted, pay, text } = j;
+    lines.push(JSON.stringify({ id, company, title, location, remote, url, posted, pay, description: text }));
+  }
+  const file = resolve(dir, `${date}.jsonl`);
+  await writeFile(file, lines.join("\n") + "\n");
+  const keep = cfg.dumpKeepDays ?? 30;
+  const cutoff = new Date(Date.now() - keep * 86400000).toLocaleDateString("en-CA");
+  for (const f of await readdir(dir)) {
+    const m = f.match(/^(\d{4}-\d{2}-\d{2})\.jsonl$/);
+    if (m && keep >= 0 && m[1] < cutoff) await unlink(resolve(dir, f));
+  }
+  console.log(`全量导出：${file}（${lines.length} 个职位，保留 ${keep} 天）`);
 }
 
 async function match() {
@@ -156,5 +181,6 @@ else console.log(`用法：
   npm run scan -- --loose           也显示没写级别/年限的职位
   npm run scan -- --anywhere        不限地点
   npm run scan -- --all             不过滤，全部打分（调试用）
+  npm run scan -- --dump            另外把抓到的所有职位写到 out/all/日期.jsonl
   npm run match -- <链接或txt>      给单个职位打分
   npm run skills                    看简历里认出了哪些技能`);

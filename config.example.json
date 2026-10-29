@@ -102,5 +102,7 @@
     "swe"
   ],
   "minScore": 35,
-  "keepDays": 7
+  "keepDays": 7,
+  "dump": false,
+  "dumpKeepDays": 30
 }

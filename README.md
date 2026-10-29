@@ -32,12 +32,13 @@ npm run match -- job.txt          # or a job description saved as text
 npm run skills                    # show which skills were found in your resume
 ```
 
-Useful `scan` flags: `--top 50` (show more in the terminal), `--company quora` (one company), `--loose` (include postings that state no level or years), `--anywhere` (ignore location), `--all` (no filtering, for debugging).
+Useful `scan` flags: `--top 50` (show more in the terminal), `--company quora` (one company), `--loose` (include postings that state no level or years), `--anywhere` (ignore location), `--all` (no filtering, for debugging), `--dump` (also write every fetched posting to `out/all/<date>.jsonl`).
 
 ## What a run produces
 
 - `out/report.html`: overwritten on every run. Filter by location and match level, sort by score or date, search, and expand a posting to see matched skills, missing skills and keywords.
 - `out/<date>.md` and `out/<date>.json`: kept for `keepDays` days (default 7).
+- `out/all/<date>.jsonl` (only with `--dump` or `"dump": true` in the config): every fetched posting, one JSON object per line (`id, company, title, location, remote, url, posted, pay, description`). Kept for `dumpKeepDays` days (default 30). [job-market-search](https://github.com/sophiazhangio/job-market-search) reads these for semantic search and skill trends.
 - A posting is marked **NEW** on the day it first shows up (`.cache/seen.json`).
 
 ## How scoring works
