@@ -102,5 +102,6 @@
     "developer",
     "swe"
   ],
-  "minScore": 35
+  "minScore": 35,
+  "keepDays": 7
 }

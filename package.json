@@ -10,7 +10,8 @@
   "scripts": {
     "scan": "node src/cli.ts scan",
     "match": "node src/cli.ts match",
-    "skills": "node src/cli.ts skills"
+    "skills": "node src/cli.ts skills",
+    "open": "open out/report.html"
   },
   "dependencies": {
     "unpdf": "1.1.0"

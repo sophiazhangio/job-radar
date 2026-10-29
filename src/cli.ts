@@ -5,7 +5,7 @@
 //   node src/cli.ts match <job URL or .txt file>
 //   node src/cli.ts skills
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +13,7 @@ import { readResume } from "./resume.ts";
 import { findSkills } from "./skills.ts";
 import { fetchAll, fetchOne, type Job } from "./sources.ts";
 import { score, type Config, type Result, type Resume } from "./score.ts";
+import { toHtml } from "./html.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -20,7 +21,7 @@ const cmd = args[0] ?? "help";
 const flag = (name: string) => args.includes(`--${name}`);
 const opt = (name: string) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : undefined; };
 
-const cfg: Config & { resume: string } = JSON.parse(await readFile(resolve(ROOT, "config.json"), "utf8"));
+const cfg: Config & { resume: string; keepDays?: number } = JSON.parse(await readFile(resolve(ROOT, "config.json"), "utf8"));
 const resumePath = resolve(ROOT, opt("resume") ?? cfg.resume);
 
 async function loadResume(): Promise<Resume> {
@@ -70,22 +71,37 @@ async function scan() {
   const kept = all.filter(r => (flag("all") || !r.dropped) && r.score >= (flag("all") ? 0 : cfg.minScore))
     .sort((a, b) => b.score - a.score || b.job.posted.localeCompare(a.job.posted));
 
-  const cacheFile = resolve(ROOT, ".cache/seen.json");
-  const seen = new Set<string>(existsSync(cacheFile) ? JSON.parse(await readFile(cacheFile, "utf8")) : []);
-  const top = parseInt(opt("top") ?? "30", 10);
-  for (const r of kept.slice(0, top)) { explain(r, !seen.has(r.job.id)); console.log(); }
-
+  // First-seen date per job. A job stays NEW for the whole day it first appeared.
   const date = new Date().toLocaleDateString("en-CA");
+  const cacheFile = resolve(ROOT, ".cache/seen.json");
+  const raw = existsSync(cacheFile) ? JSON.parse(await readFile(cacheFile, "utf8")) : {};
+  const firstSeen: Record<string, string> = Array.isArray(raw) ? Object.fromEntries(raw.map((id: string) => [id, "2000-01-01"])) : raw;
+  const isNew = (id: string) => !firstSeen[id] || firstSeen[id] >= date;
+  const seen = new Set(kept.filter(r => !isNew(r.job.id)).map(r => r.job.id));
+  const top = parseInt(opt("top") ?? "30", 10);
+  for (const r of kept.slice(0, top)) { explain(r, isNew(r.job.id)); console.log(); }
+
   await mkdir(resolve(ROOT, "out"), { recursive: true });
   await mkdir(resolve(ROOT, ".cache"), { recursive: true });
   const md = resolve(ROOT, `out/${date}.md`);
   await writeFile(md, toMarkdown(kept, seen, date, jobs.length, errors));
-  await writeFile(resolve(ROOT, `out/${date}.json`), JSON.stringify(kept.map(r => ({ ...r, job: { ...r.job, text: undefined }, new: !seen.has(r.job.id) })), null, 2));
-  for (const r of kept) seen.add(r.job.id);
-  await writeFile(cacheFile, JSON.stringify([...seen]));
+  await writeFile(resolve(ROOT, `out/${date}.json`), JSON.stringify(kept.map(r => ({ ...r, job: { ...r.job, text: undefined }, new: isNew(r.job.id) })), null, 2));
+  const page = resolve(ROOT, "out/report.html");
+  await writeFile(page, toHtml(kept.map(r => ({ ...r, isNew: isNew(r.job.id) })), { date, fetched: jobs.length, companies: list.length, errors }));
+  for (const r of kept) firstSeen[r.job.id] ??= date;
+  await writeFile(cacheFile, JSON.stringify(firstSeen));
+
+  // Keep dated reports for keepDays days (report.html is always overwritten).
+  const keep = cfg.keepDays ?? 7;
+  const cutoff = new Date(Date.now() - keep * 86400000).toLocaleDateString("en-CA");
+  for (const f of await readdir(resolve(ROOT, "out"))) {
+    const m = f.match(/^(\d{4}-\d{2}-\d{2})\.(md|json)$/);
+    if (m && (keep <= 0 ? m[1] !== date || keep < 0 : m[1] < cutoff)) await unlink(resolve(ROOT, "out", f));
+  }
 
   console.log(`${C.b}抓取 ${jobs.length} 个职位 → 符合条件 ${kept.length} 个${C.r}（终端只显示前 ${Math.min(top, kept.length)} 个）`);
-  console.log(`完整报告：${md}`);
+  console.log(`网页报告：${page}（双击打开，或运行 npm run open）`);
+  console.log(`文字报告：${md}`);
   if (errors.length) console.log(`${C.y}${errors.length} 家公司没抓到，详见报告末尾。${C.r}`);
 }
 

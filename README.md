@@ -15,9 +15,14 @@ npm run scan -- --loose           # 也显示没写级别/年限的职位
 npm run match -- <职位链接>       # 给单个职位打分（Greenhouse/Ashby/Lever 链接最准，其他网页也能试）
 npm run match -- job.txt          # 把 JD 复制进 txt 文件也行
 npm run skills                    # 看简历里认出了哪些技能
+npm run open                      # 打开网页报告
 ```
 
-第二次运行 `scan` 起，新出现的职位会标 **NEW**（记录在 `.cache/seen.json`）。
+每次 `scan` 都会生成：
+- `out/report.html`：网页报告，每次覆盖成最新结果。`npm run open` 或双击打开，可以按地点、匹配度筛选，按分数或日期排序，搜索，点开看详情。纯本地文件，不联网，不用 AI。
+- `out/日期.md` 和 `out/日期.json`：文字版报告，保留最近 `keepDays` 天（默认 7，在 `config.json` 里改；设成 0 只留当天）。
+
+某个职位第一次出现的那一天会标 **NEW**（记录在 `.cache/seen.json`）。
 
 ## 改设置
 
