@@ -48,6 +48,7 @@ export type Result = {
   keywords: string[]; // frequent posting terms that never appear in the resume
   flags: string[];
   dropped?: string;
+  tracked?: { status: string; applied: string }; // from the online tracker export
 };
 
 const NON_US = /\beu\b|europe|uk&i|canada|toronto|vancouver|montreal|london|\buk\b|united kingdom|ireland|dublin|germany|berlin|munich|france|paris|india|bangalore|bengaluru|hyderabad|singapore|japan|tokyo|australia|sydney|brazil|mexico|poland|warsaw|netherlands|amsterdam|spain|madrid|israel|tel aviv|emea|apac|latam|korea|seoul|philippines|argentina|colombia/i;

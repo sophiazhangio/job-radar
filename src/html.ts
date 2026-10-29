@@ -4,7 +4,7 @@ import type { Result } from "./score.ts";
 
 export type Row = Result & { isNew: boolean };
 
-export function toHtml(rows: Row[], meta: { date: string; fetched: number; companies: number; errors: string[] }): string {
+export function toHtml(rows: Row[], meta: { date: string; fetched: number; companies: number; errors: string[]; trackedFile: string }): string {
   const data = rows.map(r => ({
     company: r.job.company, title: r.job.title, url: /^https?:\/\//.test(r.job.url) ? r.job.url : "",
     location: r.job.location, where: r.where, pay: r.job.pay, posted: r.job.posted,
@@ -12,6 +12,7 @@ export function toHtml(rows: Row[], meta: { date: string; fetched: number; compa
     reqHit: r.required.length - r.missingRequired.length, reqAll: r.required.length,
     matched: r.matched, missingRequired: r.missingRequired, missingNice: r.missingNice,
     keywords: r.keywords, flags: r.flags, isNew: r.isNew,
+    tracked: r.tracked ? { status: r.tracked.status, applied: r.tracked.applied } : null,
   }));
   const json = JSON.stringify({ meta, rows: data }).replace(/</g, "\\u003c");
   return `<!doctype html>
@@ -69,6 +70,8 @@ label.chk { font-size: 13px; color: var(--muted); display: inline-flex; gap: 5px
 .ti { overflow-wrap: anywhere; }
 .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 2px; }
 .sub2 { text-align: right; font: 12px var(--mono); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.trk { display: inline-block; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 600; border-radius: 4px; padding: 0 6px; margin-left: 6px; vertical-align: 2px; }
+.card.is-tracked { opacity: 0.78; }
 .new { display: inline-block; background: var(--new-soft); color: var(--new); font-size: 11px; font-weight: 600; border-radius: 4px; padding: 0 6px; margin-left: 6px; vertical-align: 2px; }
 .detail { padding: 12px 16px 16px; display: grid; grid-template-columns: 140px 1fr; gap: 6px 14px; font-size: 14px; }
 .detail dt { color: var(--muted); font-size: 13px; }
@@ -107,6 +110,7 @@ a { color: var(--accent); }
       <option value="score">按总分</option><option value="resume">按简历分</option><option value="fit">按条件分</option><option value="posted">按发布日期</option>
     </select>
     <label class="chk"><input type="checkbox" id="onlyNew"> 只看新的</label>
+    <label class="chk"><input type="checkbox" id="hideTracked"> 隐藏已追踪</label>
     <input type="search" id="q" placeholder="搜公司、职位、技能" aria-label="搜索">
   </div>
   <div class="list" id="list"></div>
@@ -115,14 +119,16 @@ a { color: var(--accent); }
 <script id="data" type="application/json">${json}</script>
 <script>
 const { meta, rows } = JSON.parse(document.getElementById("data").textContent);
-const state = { where: "", label: "", sort: "score", onlyNew: false, q: "" };
+const state = { where: "", label: "", sort: "score", onlyNew: false, hideTracked: false, q: "" };
+const STATUS = { saved: "待投", applied: "已投", oa: "笔试/OA", interview: "面试中", offer: "Offer", rejected: "被拒", closed: "职位已关", skip: "不投了" };
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-$("sub").textContent = meta.date + " · " + meta.companies + " 家公司 · 抓取 " + meta.fetched + " 个职位" + (meta.errors.length ? " · " + meta.errors.length + " 家没抓到" : "");
+$("sub").textContent = meta.date + " · " + meta.companies + " 家公司 · 抓取 " + meta.fetched + " 个职位" + (meta.errors.length ? " · " + meta.errors.length + " 家没抓到" : "") + (meta.trackedFile ? " · 已读追踪表导出" : " · 没有追踪表导出（在追踪表点「导出给 job-radar」）");
 const stat = (n, l) => { const d = el("div"); d.append(el("b", null, String(n)), el("span", null, l)); return d; };
 $("stats").append(
   stat(rows.length, "符合条件"), stat(rows.filter(r => r.isNew).length, "新出现"),
+  stat(rows.filter(r => r.tracked).length, "已在追踪表"),
   stat(rows.filter(r => r.label === "Strong").length, "Strong"), stat(rows.filter(r => r.where === "Remote US").length, "远程"),
   stat(rows.filter(r => r.where === "LA/OC").length, "LA/OC"));
 
@@ -130,11 +136,12 @@ function tags(list, cls) { const f = document.createDocumentFragment(); list.for
 function row(dl, k, v) { if (!v || (v.childNodes && !v.childNodes.length)) return; dl.append(el("dt", null, k)); const dd = el("dd"); dd.append(v); dl.append(dd); }
 
 function card(r) {
-  const d = el("details", "card");
+  const d = el("details", "card" + (r.tracked ? " is-tracked" : ""));
   const s = el("summary");
   const sc = el("div", "score " + r.label); sc.append(el("b", null, String(r.score)), el("span", null, r.label));
   const main = el("div", "main");
   const co = el("div", "co", r.company); if (r.isNew) co.append(el("span", "new", "NEW"));
+  if (r.tracked) co.append(el("span", "trk", (STATUS[r.tracked.status] || r.tracked.status) + (r.tracked.applied ? " " + r.tracked.applied.slice(5).replace("-", "/") : "")));
   const meta = el("div", "meta");
   [r.where, r.pay, r.posted && ("发布 " + r.posted), r.years != null && ("要求 " + r.years + "+ 年")].filter(Boolean).forEach(t => meta.append(el("span", null, t)));
   main.append(co, el("div", "ti", r.title), meta);
@@ -155,7 +162,7 @@ function card(r) {
 function render() {
   const q = state.q.trim().toLowerCase();
   let list = rows.filter(r =>
-    (!state.where || r.where === state.where) && (!state.label || r.label === state.label) && (!state.onlyNew || r.isNew) &&
+    (!state.where || r.where === state.where) && (!state.label || r.label === state.label) && (!state.onlyNew || r.isNew) && (!state.hideTracked || !r.tracked) &&
     (!q || [r.company, r.title, r.location, ...r.matched, ...r.missingRequired, ...r.keywords].join(" ").toLowerCase().includes(q)));
   const key = state.sort;
   list = list.slice().sort((a, b) => key === "posted" ? String(b.posted).localeCompare(String(a.posted)) : b[key] - a[key] || b.score - a.score);
@@ -174,6 +181,7 @@ for (const id of ["where", "label"]) {
 }
 $("sort").addEventListener("change", e => { state.sort = e.target.value; render(); });
 $("onlyNew").addEventListener("change", e => { state.onlyNew = e.target.checked; render(); });
+$("hideTracked").addEventListener("change", e => { state.hideTracked = e.target.checked; render(); });
 $("q").addEventListener("input", e => { state.q = e.target.value; render(); });
 render();
 </script>

@@ -14,6 +14,7 @@ import { findSkills } from "./skills.ts";
 import { fetchAll, fetchOne, type Job } from "./sources.ts";
 import { score, type Config, type Result, type Resume } from "./score.ts";
 import { toHtml } from "./html.ts";
+import { loadTracked, makeLookup, STATUS_LABEL, FINISHED } from "./tracked.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -36,9 +37,11 @@ async function loadResume(): Promise<Resume> {
 const C = { dim: "\x1b[2m", b: "\x1b[1m", g: "\x1b[32m", y: "\x1b[33m", c: "\x1b[36m", r: "\x1b[0m" };
 const color = (l: string) => (l === "Strong" ? C.g : l === "Good" ? C.c : C.y);
 
+const trackedTag = (r: Result) => r.tracked ? `[${STATUS_LABEL[r.tracked.status] ?? r.tracked.status}${r.tracked.applied ? " " + r.tracked.applied.slice(5).replace("-", "/") : ""}]` : "";
+
 function explain(r: Result, isNew = false) {
   const j = r.job;
-  console.log(`${C.b}${color(r.label)}${r.score.toString().padStart(3)} ${r.label.padEnd(7)}${C.r} ${C.b}${j.company}${C.r} · ${j.title}${isNew ? ` ${C.y}NEW${C.r}` : ""}`);
+  console.log(`${C.b}${color(r.label)}${r.score.toString().padStart(3)} ${r.label.padEnd(7)}${C.r} ${C.b}${j.company}${C.r} · ${j.title}${isNew ? ` ${C.y}NEW${C.r}` : ""}${r.tracked ? ` ${C.c}${trackedTag(r)}${C.r}` : ""}`);
   console.log(`    ${C.dim}${[r.where || j.location || "地点未知", j.pay, j.posted && `发布 ${j.posted}`, r.years !== null ? `要求 ${r.years}+ 年` : ""].filter(Boolean).join(" · ")}${C.r}`);
   console.log(`    ${j.url}`);
   console.log(`    简历 ${r.resumeScore}（必须项对上 ${r.required.length - r.missingRequired.length}/${r.required.length}）· 条件 ${r.fitScore}`);
@@ -54,7 +57,7 @@ function toMarkdown(rs: Result[], seen: Set<string>, date: string, total: number
   const rows = rs.map(r => {
     const j = r.job;
     const esc = (s: string) => s.replace(/\|/g, "/");
-    return `| ${r.score} ${r.label} | ${r.resumeScore} (${r.required.length - r.missingRequired.length}/${r.required.length}) | ${r.fitScore} | ${esc(j.company)} | [${esc(j.title)}](${j.url})${seen.has(j.id) ? "" : " **NEW**"} | ${esc(r.where)} | ${esc(j.pay || "")} | ${j.posted} | ${r.matched.join(", ")} | ${r.missingRequired.join(", ")} | ${r.missingNice.join(", ")} | ${esc(r.keywords.join(", "))} | ${esc(r.flags.join("; "))} |`;
+    return `| ${r.score} ${r.label} | ${r.resumeScore} (${r.required.length - r.missingRequired.length}/${r.required.length}) | ${r.fitScore} | ${esc(j.company)} | [${esc(j.title)}](${j.url})${seen.has(j.id) ? "" : " **NEW**"}${r.tracked ? " " + trackedTag(r) : ""} | ${esc(r.where)} | ${esc(j.pay || "")} | ${j.posted} | ${r.matched.join(", ")} | ${r.missingRequired.join(", ")} | ${r.missingNice.join(", ")} | ${esc(r.keywords.join(", "))} | ${esc(r.flags.join("; "))} |`;
   });
   return `# 职位扫描 ${date}\n\n抓取 ${total} 个职位，符合条件 ${rs.length} 个。\n\n总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项占 75，加分项占 25）；条件分看级别、地点、AI 相关、毕业时间。\n\n| 总分 | 简历 | 条件 | 公司 | 职位 | 地点 | 薪资 | 发布 | 对上的技能 | 缺（必须） | 缺（加分项） | 简历里没有的词 | 注意 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n${rows.join("\n")}\n${errors.length ? `\n## 没抓到的公司\n\n${errors.map(e => `- ${e}`).join("\n")}\n` : ""}`;
 }
@@ -68,7 +71,14 @@ async function scan() {
   process.stderr.write(`正在抓 ${list.length} 家公司的职位…\n`);
   const jobs: Job[] = await fetchAll(list, e => errors.push(e));
   const all = jobs.map(j => score(j, resume, cfg, { keepAll: flag("anywhere"), loose: flag("loose") }));
+  // Mark postings already in the online tracker; hide the ones you are done with (rejected, closed, skipped).
+  const tracked = await loadTracked(ROOT);
+  if (tracked) {
+    const lookup = makeLookup(tracked.jobs);
+    for (const r of all) { const t = lookup(r.job); if (t) r.tracked = { status: t.status, applied: t.applied }; }
+  }
   const kept = all.filter(r => (flag("all") || !r.dropped) && r.score >= (flag("all") ? 0 : cfg.minScore))
+    .filter(r => flag("all") || !(r.tracked && FINISHED.has(r.tracked.status)))
     .sort((a, b) => b.score - a.score || b.job.posted.localeCompare(a.job.posted));
 
   // First-seen date per job. A job stays NEW for the whole day it first appeared.
@@ -76,7 +86,9 @@ async function scan() {
   const cacheFile = resolve(ROOT, ".cache/seen.json");
   const raw = existsSync(cacheFile) ? JSON.parse(await readFile(cacheFile, "utf8")) : {};
   const firstSeen: Record<string, string> = Array.isArray(raw) ? Object.fromEntries(raw.map((id: string) => [id, "2000-01-01"])) : raw;
-  const isNew = (id: string) => !firstSeen[id] || firstSeen[id] >= date;
+  const isNewId = (id: string) => !firstSeen[id] || firstSeen[id] >= date;
+  const newIds = new Set(kept.filter(r => !r.tracked && isNewId(r.job.id)).map(r => r.job.id));
+  const isNew = (id: string) => newIds.has(id);
   const seen = new Set(kept.filter(r => !isNew(r.job.id)).map(r => r.job.id));
   const top = parseInt(opt("top") ?? "30", 10);
   for (const r of kept.slice(0, top)) { explain(r, isNew(r.job.id)); console.log(); }
@@ -87,7 +99,7 @@ async function scan() {
   await writeFile(md, toMarkdown(kept, seen, date, jobs.length, errors));
   await writeFile(resolve(ROOT, `out/${date}.json`), JSON.stringify(kept.map(r => ({ ...r, job: { ...r.job, text: undefined }, new: isNew(r.job.id) })), null, 2));
   const page = resolve(ROOT, "out/report.html");
-  await writeFile(page, toHtml(kept.map(r => ({ ...r, isNew: isNew(r.job.id) })), { date, fetched: jobs.length, companies: list.length, errors }));
+  await writeFile(page, toHtml(kept.map(r => ({ ...r, isNew: isNew(r.job.id) })), { date, fetched: jobs.length, companies: list.length, errors, trackedFile: tracked?.file ?? "" }));
   for (const r of kept) firstSeen[r.job.id] ??= date;
   await writeFile(cacheFile, JSON.stringify(firstSeen));
 
@@ -102,6 +114,8 @@ async function scan() {
   console.log(`${C.b}抓取 ${jobs.length} 个职位 → 符合条件 ${kept.length} 个${C.r}（终端只显示前 ${Math.min(top, kept.length)} 个）`);
   console.log(`网页报告：${page}（双击打开，或运行 npm run open）`);
   console.log(`文字报告：${md}`);
+  if (tracked) console.log(`追踪表：读了 ${tracked.file}（${tracked.jobs.length} 个职位，这次结果里出现 ${kept.filter(r => r.tracked).length} 个）`);
+  else console.log(`${C.dim}没找到 tracked.json。想在报告里标出已投的职位，去追踪表点「导出给 job-radar」。${C.r}`);
   if (errors.length) console.log(`${C.y}${errors.length} 家公司没抓到，详见报告末尾。${C.r}`);
 }
 
