@@ -1,6 +1,6 @@
 {
-  "_note": "Your search rules. Edit freely.",
-  "resume": "../resume/Songya_Zhang_Resume.pdf",
+  "_note": "Copy this file to config.local.json and edit it. config.local.json is gitignored.",
+  "resume": "./resume.pdf",
   "graduation": "2025-12",
   "maxYears": 2,
   "locations": {
@@ -26,7 +26,6 @@
       "tustin",
       "brea",
       "fullerton",
-      "yorba linda",
       "orange",
       "lake forest",
       "huntington beach",

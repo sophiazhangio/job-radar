@@ -5,3 +5,4 @@ out/
 resume.txt
 resume.md
 tracked.json
+config.local.json

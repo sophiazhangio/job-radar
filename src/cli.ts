@@ -22,12 +22,18 @@ const cmd = args[0] ?? "help";
 const flag = (name: string) => args.includes(`--${name}`);
 const opt = (name: string) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : undefined; };
 
-const cfg: Config & { resume: string; keepDays?: number } = JSON.parse(await readFile(resolve(ROOT, "config.json"), "utf8"));
+// Personal settings live in config.local.json (gitignored); config.example.json is the template.
+const cfgPath = ["config.local.json", "config.json"].map(f => resolve(ROOT, f)).find(f => existsSync(f));
+if (!cfgPath) {
+  console.error("No config.local.json yet. Copy the template and edit it:\n  cp config.example.json config.local.json");
+  process.exit(1);
+}
+const cfg: Config & { resume: string; keepDays?: number } = JSON.parse(await readFile(cfgPath, "utf8"));
 const resumePath = resolve(ROOT, opt("resume") ?? cfg.resume);
 
 async function loadResume(): Promise<Resume> {
   if (!existsSync(resumePath)) {
-    console.error(`找不到简历：${resumePath}\n在 config.json 里改 "resume"，或者用 --resume <路径>。`);
+    console.error(`找不到简历：${resumePath}\n在 config.local.json 里改 "resume"，或者用 --resume <路径>。`);
     process.exit(1);
   }
   const text = await readResume(resumePath);

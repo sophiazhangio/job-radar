@@ -1,66 +1,114 @@
 # job-radar
 
-从公开的招聘板（Greenhouse、Ashby、Lever 的公开 API）抓入门级软件岗位，再用关键词规则跟你的简历比对打分。只在本地运行，不登录任何网站，不投递，不填表。
+English · [中文](README.zh-CN.md)
 
-## 用法
+A local command-line tool that pulls entry-level software postings straight from companies' public job boards and ranks them against your resume.
 
-需要 Node.js 23.6 或更新版本（直接运行 TypeScript）。
+- **Sources:** the public job-board APIs of Greenhouse, Ashby and Lever, the applicant tracking systems behind many tech companies' career pages. No login, no scraping of LinkedIn or Indeed, and nothing is submitted anywhere.
+- **Matching:** keyword and rule based. It reads your resume PDF, finds the skills on it, and scores each posting on how well your resume covers it and how well it fits what you are looking for.
+- **Output:** a filterable HTML report, a Markdown/JSON report, and a short list in the terminal.
+- **Cost:** free. No AI or paid API is involved; one run of ~100 companies (~11,000 postings) takes about 10 seconds.
+
+> The terminal output, report page and Chinese README are in Chinese (the author's working language). Settings and code are in English.
+
+## Quick start
+
+Requires Node.js 23.6+ (it runs TypeScript directly, no build step).
 
 ```bash
+git clone https://github.com/sophiazhangio/job-radar
+cd job-radar
 npm install
-npm run scan                      # 抓全部公司，按匹配度排序，报告写到 out/日期.md
-npm run scan -- --top 50          # 终端多显示几个
-npm run scan -- --company quora   # 只抓某家公司
-npm run scan -- --loose           # 也显示没写级别/年限的职位
-npm run match -- <职位链接>       # 给单个职位打分（Greenhouse/Ashby/Lever 链接最准，其他网页也能试）
-npm run match -- job.txt          # 把 JD 复制进 txt 文件也行
-npm run skills                    # 看简历里认出了哪些技能
-npm run open                      # 打开网页报告
+cp config.example.json config.local.json
 ```
 
-每次 `scan` 都会生成：
-- `out/report.html`：网页报告，每次覆盖成最新结果。`npm run open` 或双击打开，可以按地点、匹配度筛选，按分数或日期排序，搜索，点开看详情。纯本地文件，不联网，不用 AI。
-- `out/日期.md` 和 `out/日期.json`：文字版报告，保留最近 `keepDays` 天（默认 7，在 `config.json` 里改；设成 0 只留当天）。
+Put your resume PDF in the folder (or anywhere) and set `resume`, `graduation` and `locations` in `config.local.json`. Then:
 
-某个职位第一次出现的那一天会标 **NEW**（记录在 `.cache/seen.json`）。
+```bash
+npm run scan                      # fetch every company, score, write reports
+npm run open                      # open out/report.html
+npm run match -- <posting URL>    # score one posting (Greenhouse/Ashby/Lever URLs work best)
+npm run match -- job.txt          # or a job description saved as text
+npm run skills                    # show which skills were found in your resume
+```
 
-## 和追踪表连起来
+Useful `scan` flags: `--top 50` (show more in the terminal), `--company quora` (one company), `--loose` (include postings that state no level or years), `--anywhere` (ignore location), `--all` (no filtering, for debugging).
 
-在线的「求职投递追踪」页面上点「导出给 job-radar」，会下载一个 `tracked.json`。job-radar 每次扫描时会自动找最新的那份（项目文件夹或 `~/Downloads` 里的 `tracked.json`、`tracked (1).json` 等），然后：
+## What a run produces
 
-- 已在追踪表里的职位标出状态，比如「已投 10/29」「面试中」，不再标 NEW。
-- 状态是「被拒」「职位已关」「不投了」的职位不再显示。
-- 网页报告里可以勾「隐藏已追踪」，只看还没处理的。
+- `out/report.html`: overwritten on every run. Filter by location and match level, sort by score or date, search, and expand a posting to see matched skills, missing skills and keywords.
+- `out/<date>.md` and `out/<date>.json`: kept for `keepDays` days (default 7).
+- A posting is marked **NEW** on the day it first shows up (`.cache/seen.json`).
 
-追踪表更新后想同步，就再点一次导出。全程不用 AI，不用登录。
+## How scoring works
 
-## 改设置
+Each posting gets two scores out of 100.
 
-- `config.json`：简历路径、毕业时间、最多几年经验、可接受的城市、标题和正文的排除词、最低分。
-- `companies.json`：要抓的公司。格式 `["显示名", "greenhouse|ashby|lever", "板子名"]`，板子名就是招聘页网址里那一段，比如 `jobs.ashbyhq.com/quora` 的 `quora`。
-- `src/skills.ts`：技能词典。简历或 JD 里的写法没认出来，就在这里加。
+**Resume score**: how much of the posting your resume covers.
+- The description is split into required and nice-to-have parts using headings such as *Requirements*, *Nice to have*, *Preferred* and phrases like *a plus*.
+- Required skills are worth 75 points, nice-to-have skills 25. Core languages and frameworks count double.
+- In "Python, Java or Go" style lists, having one of them is enough.
+- Each required language you don't list (Go, Rust, Kotlin…) costs 10 points.
+- Shown with a count, e.g. `89 (5/6 required)`, and flagged when a posting names only one or two skills.
 
-## 打分怎么算
+**Fit score**: whether the posting fits what you want.
+- Level (50): new grad / junior / early career / 0–2 years scores high; 2 years partly.
+- Location (30): remote in the US or one of your cities.
+- AI focus (20): mentions of Claude Code, Codex or Cursor score full; LLMs and agents partly.
+- A graduation window that seems to exclude you costs 40.
 
-每个职位有两个分数，满分都是 100：
+**Total** = 60% resume + 40% fit, used for ranking. 70+ is *Strong*, 50+ *Good*.
 
-**简历分**：你的简历覆盖了多少职位要求的技能。
-- 职位描述会被拆成「要求」和「加分项」两部分（按 Requirements / Nice to have / Preferred 这类小标题和 "a plus" 这类字眼）。
-- 要求里的技能占 75 分，加分项占 25 分。主力语言和框架算 2 倍。
-- "Python、Java 或 Go 任选一种" 这种写法，你有其中一种就不算缺。
-- 要求里有你没写过的语言（Go、Rust、Kotlin 等），每个 -10。
-- 显示为「简历 89（必须项对上 5/6）」。职位只写了一两个技能时，分数参考价值低，会有提示。
+**Keywords missing from your resume**: technical terms and phrases that appear in the posting's requirements but nowhere in your resume (e.g. "design systems", "cloudflare workers"), useful when tailoring a resume.
 
-**条件分**：职位合不合你的求职条件。
-- 级别 50：写了 new grad / junior / early career / 0–2 年得高分，要求 2 年给一部分。
-- 地点 30：远程（美国）或 LA/OC。
-- AI 相关 20：提到 Claude Code / Codex / Cursor 得满分，提到 LLM、agent 得一部分。
-- 毕业时间窗口看起来不包含你，-40。
+Filtered out before scoring: senior/staff/lead/manager titles, level II and up, internships, embedded/hardware/C++ titles, postings that mention security clearances or defense, locations outside your list, more years than `maxYears`, and postings with no level or years stated (see them with `--loose`).
 
-**总分** = 60% 简历分 + 40% 条件分，用来排序。70 以上 Strong，50 以上 Good。
+It is keyword matching and does not understand meaning. Use the score to decide what to read first, not whether to apply.
 
-**简历里没有的词**：职位要求里出现、但你简历里一次都没出现的技术词和短语（比如 "design systems"、"cloudflare workers"）。很多公司先用招聘系统按关键词筛简历，可以把这些词交给改简历时参考。
+## Configuration
 
-直接过滤掉的：Senior/Staff/Lead 等标题、II 级以上、实习、嵌入式/硬件/C++、提到安全审查或国防、地点不符、没写级别也没写年限（用 `--loose` 可以看到）。
+- `config.local.json` (gitignored; start from `config.example.json`): resume path, graduation month, max years of experience, remote/city preferences, title and text exclusions, minimum score, report retention.
+- `companies.json`: which boards to fetch, as `["Display name", "greenhouse" | "ashby" | "lever", "board token"]`. The token is the company part of the board URL, e.g. `quora` in `jobs.ashbyhq.com/quora`. The default list leans toward AI, developer-tool, fintech and Los Angeles companies; swap in your own.
+- `src/skills.ts`: the skill dictionary and its aliases. Add an entry when a skill on your resume or in postings is not recognized.
 
-这是关键词规则，不懂语义。分数只用来排序，投之前请自己读 JD。
+## tracked.json format
+
+If your application tracker can export a `tracked.json`, the scan picks up the newest one from the project folder or `~/Downloads` (including `tracked (1).json` and so on). Postings you track are labelled with their status, and those marked rejected, closed or skipped are hidden.
+
+```json
+{
+  "jobs": [
+    {
+      "company": "Quora",
+      "role": "Full Stack Software Engineer, New Grad",
+      "url": "https://jobs.ashbyhq.com/quora/...",
+      "status": "applied",
+      "applied": "2026-10-29",
+      "followUp": "2026-11-05"
+    }
+  ]
+}
+```
+
+`status` is one of `saved`, `applied`, `oa`, `interview`, `offer`, `rejected`, `closed`, `skip`. Postings are matched by URL first, then by company and title.
+
+## Project layout
+
+```
+src/sources.ts   fetch Greenhouse / Ashby / Lever boards, normalize postings
+src/score.ts     filters, required vs nice-to-have split, resume and fit scores, keyword gaps
+src/skills.ts    skill dictionary
+src/resume.ts    resume text from PDF (unpdf), .txt or .md
+src/tracked.ts   tracked.json lookup
+src/html.ts      HTML report
+src/cli.ts       commands and report writing
+```
+
+## Limitations
+
+- Only companies on the three supported boards and listed in `companies.json` are covered; companies on Workday, Teamtailor or custom career sites are not.
+- Location and level detection rely on how each posting is written and can be wrong. Open the posting before applying.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
