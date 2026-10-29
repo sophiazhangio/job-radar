@@ -1,10 +1,28 @@
 // Builds the local report page (out/report.html). Plain HTML + JS, no network, no AI.
 
 import type { Result } from "./score.ts";
+import { L, lang } from "./i18n.ts";
+import { statusLabels } from "./tracked.ts";
 
 export type Row = Result & { isNew: boolean };
 
-export function toHtml(rows: Row[], meta: { date: string; fetched: number; companies: number; errors: string[]; trackedFile: string }): string {
+const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+
+export function toHtml(rows: Row[], meta: { date: string; fetched: number; companies: number; errors: string[]; trackedFile: string; localLabel: string }): string {
+  // Strings the page script needs at runtime, in the chosen language.
+  const t = {
+    status: statusLabels(),
+    companies: L(" 家公司", " boards"), fetched: L(" · 抓取 ", " · fetched "), postings: L(" 个职位", " postings"),
+    failed: L(" 家没抓到", " failed"), trackedYes: L(" · 已读追踪表导出", " · tracker export loaded"),
+    trackedNo: L(" · 没有追踪表导出", " · no tracker export"),
+    sMatch: L("符合条件", "Matches"), sNew: L("新出现", "New today"), sTracked: L("已在追踪表", "Tracked"), sRemote: L("远程", "Remote"),
+    posted: L("发布 ", "posted "), yrs: L("要求 {n}+ 年", "{n}+ yrs"), resume: L("简历 ", "resume "), fit: L("条件 ", "fit "),
+    open: L("打开职位页面 ↗", "Open posting ↗"), link: L("链接", "Link"), rawLoc: L("地点原文", "Location"),
+    have: L("对上的技能", "Skills you have"), missReq: L("缺（必须）", "Missing (required)"), missNice: L("缺（加分项）", "Missing (nice to have)"),
+    kw: L("简历里没有的词", "Not on your resume"), notes: L("注意", "Notes"),
+    emptyFilter: L("这个筛选下没有职位。", "No postings match these filters."), emptyAll: L("这次没有符合条件的职位。", "No matching postings this run."),
+  };
+
   const data = rows.map(r => ({
     company: r.job.company, title: r.job.title, url: /^https?:\/\//.test(r.job.url) ? r.job.url : "",
     location: r.job.location, where: r.where, pay: r.job.pay, posted: r.job.posted,
@@ -14,9 +32,9 @@ export function toHtml(rows: Row[], meta: { date: string; fetched: number; compa
     keywords: r.keywords, flags: r.flags, isNew: r.isNew,
     tracked: r.tracked ? { status: r.tracked.status, applied: r.tracked.applied } : null,
   }));
-  const json = JSON.stringify({ meta, rows: data }).replace(/</g, "\\u003c");
+  const json = JSON.stringify({ meta, t, rows: data }).replace(/</g, "\\u003c");
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${lang === "zh" ? "zh-CN" : "en"}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -100,37 +118,37 @@ a { color: var(--accent); }
   </header>
   <section class="stats" id="stats"></section>
   <div class="controls">
-    <div class="seg" id="where" role="group" aria-label="地点">
-      <button type="button" data-v="" aria-pressed="true">全部地点</button><button type="button" data-v="Remote US" aria-pressed="false">远程</button><button type="button" data-v="LA/OC" aria-pressed="false">LA/OC</button>
+    <div class="seg" id="where" role="group" aria-label="${L("地点", "Location")}">
+      <button type="button" data-v="" aria-pressed="true">${L("全部地点", "All locations")}</button><button type="button" data-v="Remote US" aria-pressed="false">${L("远程", "Remote")}</button><button type="button" data-v="${esc(meta.localLabel)}" aria-pressed="false">${esc(meta.localLabel)}</button>
     </div>
-    <div class="seg" id="label" role="group" aria-label="匹配度">
-      <button type="button" data-v="" aria-pressed="true">全部</button><button type="button" data-v="Strong" aria-pressed="false">Strong</button><button type="button" data-v="Good" aria-pressed="false">Good</button><button type="button" data-v="Stretch" aria-pressed="false">Stretch</button>
+    <div class="seg" id="label" role="group" aria-label="${L("匹配度", "Match")}">
+      <button type="button" data-v="" aria-pressed="true">${L("全部", "All")}</button><button type="button" data-v="Strong" aria-pressed="false">Strong</button><button type="button" data-v="Good" aria-pressed="false">Good</button><button type="button" data-v="Stretch" aria-pressed="false">Stretch</button>
     </div>
-    <select id="sort" aria-label="排序">
-      <option value="score">按总分</option><option value="resume">按简历分</option><option value="fit">按条件分</option><option value="posted">按发布日期</option>
+    <select id="sort" aria-label="${L("排序", "Sort")}">
+      <option value="score">${L("按总分", "Total score")}</option><option value="resume">${L("按简历分", "Resume score")}</option><option value="fit">${L("按条件分", "Fit score")}</option><option value="posted">${L("按发布日期", "Newest")}</option>
     </select>
-    <label class="chk"><input type="checkbox" id="onlyNew"> 只看新的</label>
-    <label class="chk"><input type="checkbox" id="hideTracked"> 隐藏已追踪</label>
-    <input type="search" id="q" placeholder="搜公司、职位、技能" aria-label="搜索">
+    <label class="chk"><input type="checkbox" id="onlyNew"> ${L("只看新的", "New only")}</label>
+    <label class="chk"><input type="checkbox" id="hideTracked"> ${L("隐藏已追踪", "Hide tracked")}</label>
+    <input type="search" id="q" placeholder="${L("搜公司、职位、技能", "Search company, role, skill")}" aria-label="${L("搜索", "Search")}">
   </div>
   <div class="list" id="list"></div>
-  <p class="foot">总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项 75 + 加分项 25）；条件分看级别、地点、AI 相关、毕业时间。规则打分，只用来排序，投之前请自己读职位描述。点一行展开详情。</p>
+  <p class="foot">${L("总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项 75 + 加分项 25）；条件分看级别、地点、AI 相关、毕业时间。规则打分，只用来排序，投之前请自己读职位描述。点一行展开详情。", "Total = 60% resume score + 40% fit score. Resume score: how much of the posting's skills your resume covers (required 75 + nice-to-have 25). Fit score: level, location, AI focus, graduation window. Keyword rules for ranking only; read the posting before applying. Click a row for details.")}</p>
 </div>
 <script id="data" type="application/json">${json}</script>
 <script>
-const { meta, rows } = JSON.parse(document.getElementById("data").textContent);
+const { meta, t, rows } = JSON.parse(document.getElementById("data").textContent);
 const state = { where: "", label: "", sort: "score", onlyNew: false, hideTracked: false, q: "" };
-const STATUS = { saved: "待投", applied: "已投", oa: "笔试/OA", interview: "面试中", offer: "Offer", rejected: "被拒", closed: "职位已关", skip: "不投了" };
+const STATUS = t.status;
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-$("sub").textContent = meta.date + " · " + meta.companies + " 家公司 · 抓取 " + meta.fetched + " 个职位" + (meta.errors.length ? " · " + meta.errors.length + " 家没抓到" : "") + (meta.trackedFile ? " · 已读追踪表导出" : " · 没有追踪表导出（在追踪表点「导出给 job-radar」）");
+$("sub").textContent = meta.date + " · " + meta.companies + t.companies + t.fetched + meta.fetched + t.postings + (meta.errors.length ? " · " + meta.errors.length + t.failed : "") + (meta.trackedFile ? t.trackedYes : t.trackedNo);
 const stat = (n, l) => { const d = el("div"); d.append(el("b", null, String(n)), el("span", null, l)); return d; };
 $("stats").append(
-  stat(rows.length, "符合条件"), stat(rows.filter(r => r.isNew).length, "新出现"),
-  stat(rows.filter(r => r.tracked).length, "已在追踪表"),
-  stat(rows.filter(r => r.label === "Strong").length, "Strong"), stat(rows.filter(r => r.where === "Remote US").length, "远程"),
-  stat(rows.filter(r => r.where === "LA/OC").length, "LA/OC"));
+  stat(rows.length, t.sMatch), stat(rows.filter(r => r.isNew).length, t.sNew),
+  stat(rows.filter(r => r.tracked).length, t.sTracked),
+  stat(rows.filter(r => r.label === "Strong").length, "Strong"), stat(rows.filter(r => r.where === "Remote US").length, t.sRemote),
+  stat(rows.filter(r => r.where === meta.localLabel).length, meta.localLabel));
 
 function tags(list, cls) { const f = document.createDocumentFragment(); list.forEach(t => f.append(el("span", "tag " + cls, t))); return f; }
 function row(dl, k, v) { if (!v || (v.childNodes && !v.childNodes.length)) return; dl.append(el("dt", null, k)); const dd = el("dd"); dd.append(v); dl.append(dd); }
@@ -143,18 +161,18 @@ function card(r) {
   const co = el("div", "co", r.company); if (r.isNew) co.append(el("span", "new", "NEW"));
   if (r.tracked) co.append(el("span", "trk", (STATUS[r.tracked.status] || r.tracked.status) + (r.tracked.applied ? " " + r.tracked.applied.slice(5).replace("-", "/") : "")));
   const meta = el("div", "meta");
-  [r.where, r.pay, r.posted && ("发布 " + r.posted), r.years != null && ("要求 " + r.years + "+ 年")].filter(Boolean).forEach(t => meta.append(el("span", null, t)));
+  [r.where, r.pay, r.posted && (t.posted + r.posted), r.years != null && t.yrs.replace("{n}", r.years)].filter(Boolean).forEach(t => meta.append(el("span", null, t)));
   main.append(co, el("div", "ti", r.title), meta);
-  const sub = el("div", "sub2"); sub.append(el("div", null, "简历 " + r.resume + " (" + r.reqHit + "/" + r.reqAll + ")"), el("div", null, "条件 " + r.fit));
+  const sub = el("div", "sub2"); sub.append(el("div", null, t.resume + r.resume + " (" + r.reqHit + "/" + r.reqAll + ")"), el("div", null, t.fit + r.fit));
   s.append(sc, main, sub);
   const dl = el("dl", "detail");
-  if (r.url) { const a = el("a", null, "打开职位页面 ↗"); a.href = r.url; a.target = "_blank"; a.rel = "noopener"; row(dl, "链接", a); }
-  row(dl, "地点原文", r.location ? document.createTextNode(r.location) : null);
-  row(dl, "对上的技能", tags(r.matched, "ok"));
-  row(dl, "缺（必须）", tags(r.missingRequired, "miss"));
-  row(dl, "缺（加分项）", tags(r.missingNice, ""));
-  row(dl, "简历里没有的词", tags(r.keywords, "kw"));
-  if (r.flags.length) { const f = el("div"); r.flags.forEach(t => f.append(el("div", "flag", "! " + t))); row(dl, "注意", f); }
+  if (r.url) { const a = el("a", null, t.open); a.href = r.url; a.target = "_blank"; a.rel = "noopener"; row(dl, t.link, a); }
+  row(dl, t.rawLoc, r.location ? document.createTextNode(r.location) : null);
+  row(dl, t.have, tags(r.matched, "ok"));
+  row(dl, t.missReq, tags(r.missingRequired, "miss"));
+  row(dl, t.missNice, tags(r.missingNice, ""));
+  row(dl, t.kw, tags(r.keywords, "kw"));
+  if (r.flags.length) { const f = el("div"); r.flags.forEach(t => f.append(el("div", "flag", "! " + t))); row(dl, t.notes, f); }
   d.append(s, dl);
   return d;
 }
@@ -167,7 +185,7 @@ function render() {
   const key = state.sort;
   list = list.slice().sort((a, b) => key === "posted" ? String(b.posted).localeCompare(String(a.posted)) : b[key] - a[key] || b.score - a.score);
   const box = $("list"); box.replaceChildren();
-  if (!list.length) { box.append(el("div", "empty", rows.length ? "这个筛选下没有职位。" : "这次没有符合条件的职位。")); return; }
+  if (!list.length) { box.append(el("div", "empty", rows.length ? t.emptyFilter : t.emptyAll)); return; }
   list.forEach(r => box.append(card(r)));
 }
 

@@ -14,7 +14,8 @@ import { findSkills } from "./skills.ts";
 import { fetchAll, fetchOne, type Job } from "./sources.ts";
 import { score, type Config, type Result, type Resume } from "./score.ts";
 import { toHtml } from "./html.ts";
-import { loadTracked, makeLookup, STATUS_LABEL, FINISHED } from "./tracked.ts";
+import { loadTracked, makeLookup, statusLabel, FINISHED } from "./tracked.ts";
+import { L, setLang } from "./i18n.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -28,12 +29,13 @@ if (!cfgPath) {
   console.error("No config.local.json yet. Copy the template and edit it:\n  cp config.example.json config.local.json");
   process.exit(1);
 }
-const cfg: Config & { resume: string; keepDays?: number; dump?: boolean; dumpKeepDays?: number } = JSON.parse(await readFile(cfgPath, "utf8"));
+const cfg: Config & { resume: string; keepDays?: number; dump?: boolean; dumpKeepDays?: number; lang?: string } = JSON.parse(await readFile(cfgPath, "utf8"));
+setLang(opt("lang") ?? cfg.lang);
 const resumePath = resolve(ROOT, opt("resume") ?? cfg.resume);
 
 async function loadResume(): Promise<Resume> {
   if (!existsSync(resumePath)) {
-    console.error(`找不到简历：${resumePath}\n在 config.local.json 里改 "resume"，或者用 --resume <路径>。`);
+    console.error(L(`找不到简历：${resumePath}\n在 config.local.json 里改 "resume"，或者用 --resume <路径>。`, `Resume not found: ${resumePath}\nSet "resume" in config.local.json or pass --resume <path>.`));
     process.exit(1);
   }
   const text = await readResume(resumePath);
@@ -43,20 +45,21 @@ async function loadResume(): Promise<Resume> {
 const C = { dim: "\x1b[2m", b: "\x1b[1m", g: "\x1b[32m", y: "\x1b[33m", c: "\x1b[36m", r: "\x1b[0m" };
 const color = (l: string) => (l === "Strong" ? C.g : l === "Good" ? C.c : C.y);
 
-const trackedTag = (r: Result) => r.tracked ? `[${STATUS_LABEL[r.tracked.status] ?? r.tracked.status}${r.tracked.applied ? " " + r.tracked.applied.slice(5).replace("-", "/") : ""}]` : "";
+const trackedTag = (r: Result) => r.tracked ? `[${statusLabel(r.tracked.status)}${r.tracked.applied ? " " + r.tracked.applied.slice(5).replace("-", "/") : ""}]` : "";
 
 function explain(r: Result, isNew = false) {
   const j = r.job;
   console.log(`${C.b}${color(r.label)}${r.score.toString().padStart(3)} ${r.label.padEnd(7)}${C.r} ${C.b}${j.company}${C.r} · ${j.title}${isNew ? ` ${C.y}NEW${C.r}` : ""}${r.tracked ? ` ${C.c}${trackedTag(r)}${C.r}` : ""}`);
-  console.log(`    ${C.dim}${[r.where || j.location || "地点未知", j.pay, j.posted && `发布 ${j.posted}`, r.years !== null ? `要求 ${r.years}+ 年` : ""].filter(Boolean).join(" · ")}${C.r}`);
+  console.log(`    ${C.dim}${[r.where || j.location || L("地点未知", "location unknown"), j.pay, j.posted && L(`发布 ${j.posted}`, `posted ${j.posted}`), r.years !== null ? L(`要求 ${r.years}+ 年`, `${r.years}+ yrs`) : ""].filter(Boolean).join(" · ")}${C.r}`);
   console.log(`    ${j.url}`);
-  console.log(`    简历 ${r.resumeScore}（必须项对上 ${r.required.length - r.missingRequired.length}/${r.required.length}）· 条件 ${r.fitScore}`);
-  if (r.matched.length) console.log(`    ${C.g}✓ 对上${C.r} ${r.matched.join(", ")}`);
-  if (r.missingRequired.length) console.log(`    ${C.y}✗ 缺（必须）${C.r} ${r.missingRequired.join(", ")}`);
-  if (r.missingNice.length) console.log(`    ${C.dim}~ 缺（加分项）${r.missingNice.join(", ")}${C.r}`);
-  if (r.keywords.length) console.log(`    ${C.c}简历里没有的词${C.r} ${r.keywords.join(", ")}`);
+  const hit = `${r.required.length - r.missingRequired.length}/${r.required.length}`;
+  console.log(`    ${L(`简历 ${r.resumeScore}（必须项对上 ${hit}）· 条件 ${r.fitScore}`, `resume ${r.resumeScore} (${hit} required) · fit ${r.fitScore}`)}`);
+  if (r.matched.length) console.log(`    ${C.g}✓ ${L("对上", "have")}${C.r} ${r.matched.join(", ")}`);
+  if (r.missingRequired.length) console.log(`    ${C.y}✗ ${L("缺（必须）", "missing (required)")}${C.r} ${r.missingRequired.join(", ")}`);
+  if (r.missingNice.length) console.log(`    ${C.dim}~ ${L("缺（加分项）", "missing (nice to have)")} ${r.missingNice.join(", ")}${C.r}`);
+  if (r.keywords.length) console.log(`    ${C.c}${L("简历里没有的词", "not on your resume")}${C.r} ${r.keywords.join(", ")}`);
   for (const f of r.flags) console.log(`    ${C.y}!${C.r} ${f}`);
-  if (r.dropped) console.log(`    ${C.y}会被 scan 过滤掉：${r.dropped}${C.r}`);
+  if (r.dropped) console.log(`    ${C.y}${L("会被 scan 过滤掉", "scan would filter this out")}: ${r.dropped}${C.r}`);
 }
 
 function toMarkdown(rs: Result[], seen: Set<string>, date: string, total: number, errors: string[]): string {
@@ -65,7 +68,11 @@ function toMarkdown(rs: Result[], seen: Set<string>, date: string, total: number
     const esc = (s: string) => s.replace(/\|/g, "/");
     return `| ${r.score} ${r.label} | ${r.resumeScore} (${r.required.length - r.missingRequired.length}/${r.required.length}) | ${r.fitScore} | ${esc(j.company)} | [${esc(j.title)}](${j.url})${seen.has(j.id) ? "" : " **NEW**"}${r.tracked ? " " + trackedTag(r) : ""} | ${esc(r.where)} | ${esc(j.pay || "")} | ${j.posted} | ${r.matched.join(", ")} | ${r.missingRequired.join(", ")} | ${r.missingNice.join(", ")} | ${esc(r.keywords.join(", "))} | ${esc(r.flags.join("; "))} |`;
   });
-  return `# 职位扫描 ${date}\n\n抓取 ${total} 个职位，符合条件 ${rs.length} 个。\n\n总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项占 75，加分项占 25）；条件分看级别、地点、AI 相关、毕业时间。\n\n| 总分 | 简历 | 条件 | 公司 | 职位 | 地点 | 薪资 | 发布 | 对上的技能 | 缺（必须） | 缺（加分项） | 简历里没有的词 | 注意 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n${rows.join("\n")}\n${errors.length ? `\n## 没抓到的公司\n\n${errors.map(e => `- ${e}`).join("\n")}\n` : ""}`;
+  const head = L(
+    `# 职位扫描 ${date}\n\n抓取 ${total} 个职位，符合条件 ${rs.length} 个。\n\n总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项占 75，加分项占 25）；条件分看级别、地点、AI 相关、毕业时间。\n\n| 总分 | 简历 | 条件 | 公司 | 职位 | 地点 | 薪资 | 发布 | 对上的技能 | 缺（必须） | 缺（加分项） | 简历里没有的词 | 注意 |`,
+    `# Job scan ${date}\n\nFetched ${total} postings, ${rs.length} match.\n\nTotal = 60% resume score + 40% fit score. Resume score: how much of the posting's skills your resume covers (required 75, nice-to-have 25). Fit score: level, location, AI focus, graduation window.\n\n| Total | Resume | Fit | Company | Role | Location | Pay | Posted | Skills you have | Missing (required) | Missing (nice) | Not on your resume | Notes |`);
+  const failed = errors.length ? `\n## ${L("没抓到的公司", "Boards that failed")}\n\n${errors.map(e => `- ${e}`).join("\n")}\n` : "";
+  return `${head}\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n${rows.join("\n")}\n${failed}`;
 }
 
 async function scan() {
@@ -74,7 +81,7 @@ async function scan() {
   const only = opt("company")?.toLowerCase();
   const list = only ? companies.filter((c: string[]) => c[0].toLowerCase().includes(only)) : companies;
   const errors: string[] = [];
-  process.stderr.write(`正在抓 ${list.length} 家公司的职位…\n`);
+  process.stderr.write(L(`正在抓 ${list.length} 家公司的职位…\n`, `Fetching ${list.length} job boards…\n`));
   const jobs: Job[] = await fetchAll(list, e => errors.push(e));
   const all = jobs.map(j => score(j, resume, cfg, { keepAll: flag("anywhere"), loose: flag("loose") }));
   // Mark postings already in the online tracker; hide the ones you are done with (rejected, closed, skipped).
@@ -105,7 +112,7 @@ async function scan() {
   await writeFile(md, toMarkdown(kept, seen, date, jobs.length, errors));
   await writeFile(resolve(ROOT, `out/${date}.json`), JSON.stringify(kept.map(r => ({ ...r, job: { ...r.job, text: undefined }, new: isNew(r.job.id) })), null, 2));
   const page = resolve(ROOT, "out/report.html");
-  await writeFile(page, toHtml(kept.map(r => ({ ...r, isNew: isNew(r.job.id) })), { date, fetched: jobs.length, companies: list.length, errors, trackedFile: tracked?.file ?? "" }));
+  await writeFile(page, toHtml(kept.map(r => ({ ...r, isNew: isNew(r.job.id) })), { date, fetched: jobs.length, companies: list.length, errors, trackedFile: tracked?.file ?? "", localLabel: cfg.locations.label || "Local" }));
   if (flag("dump") || cfg.dump) await dumpAll(jobs, date);
   for (const r of kept) firstSeen[r.job.id] ??= date;
   await writeFile(cacheFile, JSON.stringify(firstSeen));
@@ -118,12 +125,13 @@ async function scan() {
     if (m && (keep <= 0 ? m[1] !== date || keep < 0 : m[1] < cutoff)) await unlink(resolve(ROOT, "out", f));
   }
 
-  console.log(`${C.b}抓取 ${jobs.length} 个职位 → 符合条件 ${kept.length} 个${C.r}（终端只显示前 ${Math.min(top, kept.length)} 个）`);
-  console.log(`网页报告：${page}（双击打开，或运行 npm run open）`);
-  console.log(`文字报告：${md}`);
-  if (tracked) console.log(`追踪表：读了 ${tracked.file}（${tracked.jobs.length} 个职位，这次结果里出现 ${kept.filter(r => r.tracked).length} 个）`);
-  else console.log(`${C.dim}没找到 tracked.json。想在报告里标出已投的职位，去追踪表点「导出给 job-radar」。${C.r}`);
-  if (errors.length) console.log(`${C.y}${errors.length} 家公司没抓到，详见报告末尾。${C.r}`);
+  const shown = Math.min(top, kept.length), inRun = kept.filter(r => r.tracked).length;
+  console.log(`${C.b}${L(`抓取 ${jobs.length} 个职位 → 符合条件 ${kept.length} 个`, `Fetched ${jobs.length} postings → ${kept.length} match`)}${C.r}${L(`（终端只显示前 ${shown} 个）`, ` (showing top ${shown})`)}`);
+  console.log(L(`网页报告：${page}（双击打开，或运行 npm run open）`, `HTML report: ${page} (npm run open)`));
+  console.log(L(`文字报告：${md}`, `Markdown report: ${md}`));
+  if (tracked) console.log(L(`追踪表：读了 ${tracked.file}（${tracked.jobs.length} 个职位，这次结果里出现 ${inRun} 个）`, `Tracker: read ${tracked.file} (${tracked.jobs.length} postings, ${inRun} in this run)`));
+  else console.log(`${C.dim}${L("没找到 tracked.json。想在报告里标出已投的职位，去追踪表点「导出给 job-radar」。", "No tracked.json found. Export one from your tracker to label postings you already track.")}${C.r}`);
+  if (errors.length) console.log(`${C.y}${L(`${errors.length} 家公司没抓到，详见报告末尾。`, `${errors.length} board(s) failed; see the end of the report.`)}${C.r}`);
 }
 
 // Write every fetched posting (not just the ones that pass the filters) as one JSON object per line.
@@ -147,12 +155,12 @@ async function dumpAll(jobs: Job[], date: string) {
     const m = f.match(/^(\d{4}-\d{2}-\d{2})\.jsonl$/);
     if (m && keep >= 0 && m[1] < cutoff) await unlink(resolve(dir, f));
   }
-  console.log(`全量导出：${file}（${lines.length} 个职位，保留 ${keep} 天）`);
+  console.log(L(`全量导出：${file}（${lines.length} 个职位，保留 ${keep} 天）`, `Full dump: ${file} (${lines.length} postings, kept ${keep} days)`));
 }
 
 async function match() {
   const target = args[1];
-  if (!target) { console.error("用法：npm run match -- <职位链接 或 .txt 文件>"); process.exit(1); }
+  if (!target) { console.error(L("用法：npm run match -- <职位链接 或 .txt 文件>", "Usage: npm run match -- <posting URL or .txt file>")); process.exit(1); }
   const resume = await loadResume();
   let job: Job;
   if (/^https?:\/\//.test(target)) job = await fetchOne(target);
@@ -162,19 +170,21 @@ async function match() {
   }
   const r = score(job, resume, cfg, { keepAll: true });
   explain(r);
-  console.log(`\n${C.dim}总分 = 60% 简历分 + 40% 条件分。简历分：必须项技能覆盖 75 + 加分项覆盖 25，要求里有你没写过的语言每个 -10。条件分：级别 50 + 地点 30 + AI 相关 20，毕业时间不符 -40。\n「简历里没有的词」是职位要求里反复出现、你简历里一次都没出现的词，可以交给改简历的会话参考。只是关键词规则，最终请自己读 JD。${C.r}`);
+  console.log(`\n${C.dim}${L(
+    "总分 = 60% 简历分 + 40% 条件分。简历分：必须项技能覆盖 75 + 加分项覆盖 25，要求里有你没写过的语言每个 -10。条件分：级别 50 + 地点 30 + AI 相关 20，毕业时间不符 -40。\n「简历里没有的词」是职位要求里出现、你简历里一次都没出现的词，改简历时可以参考。只是关键词规则，最终请自己读 JD。",
+    "Total = 60% resume + 40% fit. Resume: required-skill coverage 75 + nice-to-have 25, -10 per required language you lack. Fit: level 50 + location 30 + AI focus 20, -40 if the graduation window excludes you.\n\"Not on your resume\" lists terms from the requirements that never appear in your resume. Keyword rules only; read the posting yourself.")}${C.r}`);
 }
 
 async function showSkills() {
   const { skills } = await loadResume();
-  console.log(`从简历里认出的技能（${resumePath}）：\n${[...skills].join(", ")}`);
-  console.log(`\n如果漏了，去 src/skills.ts 加别名，或者在简历里写明。`);
+  console.log(L(`从简历里认出的技能（${resumePath}）：`, `Skills found in your resume (${resumePath}):`) + `\n${[...skills].join(", ")}`);
+  console.log("\n" + L("如果漏了，去 src/skills.ts 加别名，或者在简历里写明。", "Missing one? Add an alias in src/skills.ts or spell it out in your resume."));
 }
 
 if (cmd === "scan") await scan();
 else if (cmd === "match") await match();
 else if (cmd === "skills") await showSkills();
-else console.log(`用法：
+else console.log(L(`用法：
   npm run scan                      抓所有公司，按匹配度排序，写报告到 out/
   npm run scan -- --top 50          终端多显示几个
   npm run scan -- --company quora   只抓某家公司
@@ -183,4 +193,15 @@ else console.log(`用法：
   npm run scan -- --all             不过滤，全部打分（调试用）
   npm run scan -- --dump            另外把抓到的所有职位写到 out/all/日期.jsonl
   npm run match -- <链接或txt>      给单个职位打分
-  npm run skills                    看简历里认出了哪些技能`);
+  npm run skills                    看简历里认出了哪些技能
+  任何命令加 --lang en 或 --lang zh 切换输出语言`, `Usage:
+  npm run scan                      fetch every board, rank, write reports to out/
+  npm run scan -- --top 50          show more results in the terminal
+  npm run scan -- --company quora   one company only
+  npm run scan -- --loose           include postings with no level or years stated
+  npm run scan -- --anywhere        ignore location
+  npm run scan -- --all             no filtering (debugging)
+  npm run scan -- --dump            also write every fetched posting to out/all/<date>.jsonl
+  npm run match -- <URL or .txt>    score one posting
+  npm run skills                    show skills found in your resume
+  Add --lang en or --lang zh to any command to switch the output language.`));

@@ -45,7 +45,7 @@ npm run open                      # 打开网页报告
 
 ## 改设置
 
-- `config.local.json`：简历路径、毕业时间、最多几年经验、可接受的城市、标题和正文的排除词、最低分。
+- `config.local.json`：简历路径、毕业时间、最多几年经验、可接受的城市（`locations.label` 是报告里这组城市的名字，比如 "LA/OC"）、标题和正文的排除词、最低分、输出语言（`lang`：`zh` 中文，`en` 英文；也可以在命令后加 `--lang zh`）。
 - `companies.json`：要抓的公司。默认名单偏 AI、开发者工具、金融科技和 LA 本地公司，可以按自己的方向换。格式 `["显示名", "greenhouse|ashby|lever", "板子名"]`，板子名就是招聘页网址里那一段，比如 `jobs.ashbyhq.com/quora` 的 `quora`。
 - `src/skills.ts`：技能词典。简历或 JD 里的写法没认出来，就在这里加。
 

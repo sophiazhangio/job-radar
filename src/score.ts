@@ -7,6 +7,7 @@
 
 import { CORE, SKILLS, findSkills } from "./skills.ts";
 import type { Job } from "./sources.ts";
+import { L } from "./i18n.ts";
 import { existsSync, readFileSync } from "node:fs";
 
 // Common English words (lowercase entries of the system dictionary), used to keep keyword gaps technical.
@@ -23,7 +24,7 @@ function common(w: string): boolean {
 export type Config = {
   graduation: string;
   maxYears: number;
-  locations: { remoteUS: boolean; cities: string[] };
+  locations: { remoteUS: boolean; cities: string[]; label?: string };
   excludeTitle: string[];
   excludeText: string[];
   includeTitle: string[];
@@ -56,7 +57,7 @@ const US = /\bus\b|\busa\b|u\.s\.|united states|north america|americas|anywhere/
 
 export function whereFits(job: Job, cfg: Config): string {
   const loc = job.location.toLowerCase();
-  if (cfg.locations.cities.some(c => loc.includes(c))) return "LA/OC";
+  if (cfg.locations.cities.some(c => loc.includes(c))) return cfg.locations.label || "Local";
   if (cfg.locations.remoteUS && job.remote) {
     const parts = job.location.split(/;|\|/).map(p => p.trim()).filter(Boolean);
     const usPart = parts.some(p => !NON_US.test(p) || US.test(p));
@@ -160,7 +161,7 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
 
   let where = whereFits(job, cfg);
   if (where === "Remote US" && NON_US.test(job.title) && !US.test(job.title)) where = "";
-  if (!dropped && !where && !opts.keepAll) dropped = `location not remote US or LA/OC (${job.location || "unknown"})`;
+  if (!dropped && !where && !opts.keepAll) dropped = `location not remote US or one of your cities (${job.location || "unknown"})`;
 
   const years = minYears(text);
   if (!dropped && years !== null && years > cfg.maxYears) dropped = `asks for ${years}+ years`;
@@ -195,15 +196,15 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   const reqGot = sum(required.filter(s => has.has(s)));
   const niceGot = sum(nice.filter(s => has.has(s)));
   let reqCov = required.length ? reqGot / sum(required) : 0.6;
-  if (!required.length) flags.push("要求部分没认出技能，简历分只是估计");
-  else if (required.length <= 2) flags.push(`职位只写了 ${required.length} 个能认出的技能，简历分参考价值低`);
+  if (!required.length) flags.push(L("要求部分没认出技能，简历分只是估计", "No skills recognized in the requirements; the resume score is a guess"));
+  else if (required.length <= 2) flags.push(L(`职位只写了 ${required.length} 个能认出的技能，简历分参考价值低`, `Only ${required.length} recognizable skill(s) in the posting; the resume score says little`));
   const niceCov = nice.length ? niceGot / sum(nice) : 1;
   reqCov = Math.min(1, reqCov);
 
   const missingRequired = required.filter(s => !has.has(s));
   const missingNice = nice.filter(s => !has.has(s));
   const langGap = ["Go", "Rust", "Kotlin", "Swift/iOS", "Android", "C#/.NET", "Ruby/Rails", "Scala", "C/C++"].filter(s => missingRequired.includes(s));
-  if (langGap.length) flags.push(`要求里有你没写过的语言：${langGap.join(", ")}`);
+  if (langGap.length) flags.push(L(`要求里有你没写过的语言：${langGap.join(", ")}`, `Requires languages not on your resume: ${langGap.join(", ")}`));
   const resumeScore = clamp(75 * reqCov + 25 * niceCov - Math.min(30, langGap.length * 10));
 
   // ---- Fit score ----
@@ -212,7 +213,7 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   let level = years === null ? (entryTitle || entryText ? 50 : 0) : years <= 1 ? 45 : years <= 2 ? 30 : 0;
   if ((entryTitle || entryText) && years !== null) level = Math.min(50, level + 10);
   if (years === null && !entryTitle && !entryText) {
-    flags.push("没写年限，也没写是初级岗");
+    flags.push(L("没写年限，也没写是初级岗", "No years or entry-level wording"));
     if (!dropped && !opts.loose) dropped = "level unclear (use --loose to include)";
   }
 
@@ -221,7 +222,7 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   if (/20(2[6-9])/.test(job.title) && !gradYears.length) gradYears.push(parseInt(job.title.match(/20(2[6-9])/)![0], 10));
   let gradPenalty = 0;
   if (gradYears.length && Math.min(...gradYears) > gradYear) {
-    flags.push(`毕业时间要求像是 ${Math.min(...gradYears)}+，你是 ${cfg.graduation}，先确认资格`);
+    flags.push(L(`毕业时间要求像是 ${Math.min(...gradYears)}+，你是 ${cfg.graduation}，先确认资格`, `Graduation window looks like ${Math.min(...gradYears)}+ (you: ${cfg.graduation}); check eligibility`));
     gradPenalty = 40;
   }
 
@@ -229,8 +230,8 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   const ai = jd.has("Claude Code / Codex / Cursor") ? 20 : Math.min(20, ["LLMs", "AI agents", "RAG / embeddings"].filter(s => jd.has(s)).length * 10);
   const fitScore = clamp(level + loc + ai - gradPenalty);
 
-  if (/on-?call/i.test(text)) flags.push("有 on-call");
-  if (/(not|unable|cannot|won't|will not)[^.]{0,30}sponsor/i.test(text)) flags.push("不办签证（你是否需要自己判断）");
+  if (/on-?call/i.test(text)) flags.push(L("有 on-call", "Includes on-call"));
+  if (/(not|unable|cannot|won't|will not)[^.]{0,30}sponsor/i.test(text)) flags.push(L("不办签证（你是否需要自己判断）", "No visa sponsorship"));
 
   const total = clamp(0.6 * resumeScore + 0.4 * fitScore);
   const label = total >= 70 ? "Strong" : total >= 50 ? "Good" : "Stretch";

@@ -1,4 +1,4 @@
-// Reads tracked.json exported from the online application tracker ("导出给 job-radar"),
+// Reads tracked.json exported from an application tracker,
 // so the report can show which postings you are already tracking or have applied to.
 
 import { readFile, readdir, stat } from "node:fs/promises";
@@ -6,13 +6,16 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Job } from "./sources.ts";
+import { L } from "./i18n.ts";
 
 export type Tracked = { company: string; role: string; url: string; status: string; applied: string; followUp: string };
 
-export const STATUS_LABEL: Record<string, string> = {
-  saved: "待投", applied: "已投", oa: "笔试/OA", interview: "面试中",
-  offer: "Offer", rejected: "被拒", closed: "职位已关", skip: "不投了",
+const STATUS: Record<string, [string, string]> = {
+  saved: ["待投", "Saved"], applied: ["已投", "Applied"], oa: ["笔试/OA", "OA"], interview: ["面试中", "Interviewing"],
+  offer: ["Offer", "Offer"], rejected: ["被拒", "Rejected"], closed: ["职位已关", "Closed"], skip: ["不投了", "Skipped"],
 };
+export const statusLabel = (s: string) => (STATUS[s] ? L(STATUS[s][0], STATUS[s][1]) : s);
+export const statusLabels = () => Object.fromEntries(Object.keys(STATUS).map(k => [k, statusLabel(k)]));
 // Statuses that mean "done with this one": hidden from the report.
 export const FINISHED = new Set(["rejected", "closed", "skip"]);
 

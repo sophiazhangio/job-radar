@@ -9,7 +9,7 @@ A local command-line tool that pulls entry-level software postings straight from
 - **Output:** a filterable HTML report, a Markdown/JSON report, and a short list in the terminal.
 - **Cost:** free. No AI or paid API is involved; one run of ~100 companies (~11,000 postings) takes about 10 seconds.
 
-> The terminal output, report page and Chinese README are in Chinese (the author's working language). Settings and code are in English.
+> Output is in English by default. Set `"lang": "zh"` in `config.local.json` (or pass `--lang zh`) for Chinese.
 
 ## Quick start
 
@@ -68,7 +68,7 @@ It is keyword matching and does not understand meaning. Use the score to decide 
 
 ## Configuration
 
-- `config.local.json` (gitignored; start from `config.example.json`): resume path, graduation month, max years of experience, remote/city preferences, title and text exclusions, minimum score, report retention.
+- `config.local.json` (gitignored; start from `config.example.json`): resume path, graduation month, max years of experience, remote/city preferences (`locations.label` names your city list in reports, e.g. "LA/OC"), title and text exclusions, minimum score, report retention, output language (`lang`: `en` or `zh`).
 - `companies.json`: which boards to fetch, as `["Display name", "greenhouse" | "ashby" | "lever", "board token"]`. The token is the company part of the board URL, e.g. `quora` in `jobs.ashbyhq.com/quora`. The default list leans toward AI, developer-tool, fintech and Los Angeles companies; swap in your own.
 - `src/skills.ts`: the skill dictionary and its aliases. Add an entry when a skill on your resume or in postings is not recognized.
 

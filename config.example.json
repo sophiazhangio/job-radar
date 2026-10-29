@@ -1,5 +1,5 @@
 {
-  "_note": "Copy this file to config.local.json and edit it. config.local.json is gitignored.",
+  "_note": "Copy this file to config.local.json and edit it. config.local.json is gitignored. lang: \"en\" or \"zh\"; locations.label names your city list in reports.",
   "resume": "./resume.pdf",
   "graduation": "2025-12",
   "maxYears": 2,
@@ -30,7 +30,8 @@
       "lake forest",
       "huntington beach",
       "aliso viejo"
-    ]
+    ],
+    "label": "Local"
   },
   "excludeTitle": [
     "senior",
@@ -104,5 +105,6 @@
   "minScore": 35,
   "keepDays": 7,
   "dump": false,
-  "dumpKeepDays": 30
+  "dumpKeepDays": 30,
+  "lang": "en"
 }
