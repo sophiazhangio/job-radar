@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { readResume } from "./resume.ts";
 import { findSkills } from "./skills.ts";
 import { fetchAll, fetchOne, type Job } from "./sources.ts";
-import { score, type Config, type Result } from "./score.ts";
+import { score, type Config, type Result, type Resume } from "./score.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -23,12 +23,13 @@ const opt = (name: string) => { const i = args.indexOf(`--${name}`); return i >=
 const cfg: Config & { resume: string } = JSON.parse(await readFile(resolve(ROOT, "config.json"), "utf8"));
 const resumePath = resolve(ROOT, opt("resume") ?? cfg.resume);
 
-async function resumeSkills(): Promise<Set<string>> {
+async function loadResume(): Promise<Resume> {
   if (!existsSync(resumePath)) {
     console.error(`找不到简历：${resumePath}\n在 config.json 里改 "resume"，或者用 --resume <路径>。`);
     process.exit(1);
   }
-  return findSkills(await readResume(resumePath));
+  const text = await readResume(resumePath);
+  return { text, skills: findSkills(text) };
 }
 
 const C = { dim: "\x1b[2m", b: "\x1b[1m", g: "\x1b[32m", y: "\x1b[33m", c: "\x1b[36m", r: "\x1b[0m" };
@@ -39,8 +40,11 @@ function explain(r: Result, isNew = false) {
   console.log(`${C.b}${color(r.label)}${r.score.toString().padStart(3)} ${r.label.padEnd(7)}${C.r} ${C.b}${j.company}${C.r} · ${j.title}${isNew ? ` ${C.y}NEW${C.r}` : ""}`);
   console.log(`    ${C.dim}${[r.where || j.location || "地点未知", j.pay, j.posted && `发布 ${j.posted}`, r.years !== null ? `要求 ${r.years}+ 年` : ""].filter(Boolean).join(" · ")}${C.r}`);
   console.log(`    ${j.url}`);
-  if (r.matched.length) console.log(`    ${C.g}✓${C.r} ${r.matched.join(", ")}`);
-  if (r.missing.length) console.log(`    ${C.y}✗${C.r} ${r.missing.join(", ")}`);
+  console.log(`    简历 ${r.resumeScore}（必须项对上 ${r.required.length - r.missingRequired.length}/${r.required.length}）· 条件 ${r.fitScore}`);
+  if (r.matched.length) console.log(`    ${C.g}✓ 对上${C.r} ${r.matched.join(", ")}`);
+  if (r.missingRequired.length) console.log(`    ${C.y}✗ 缺（必须）${C.r} ${r.missingRequired.join(", ")}`);
+  if (r.missingNice.length) console.log(`    ${C.dim}~ 缺（加分项）${r.missingNice.join(", ")}${C.r}`);
+  if (r.keywords.length) console.log(`    ${C.c}简历里没有的词${C.r} ${r.keywords.join(", ")}`);
   for (const f of r.flags) console.log(`    ${C.y}!${C.r} ${f}`);
   if (r.dropped) console.log(`    ${C.y}会被 scan 过滤掉：${r.dropped}${C.r}`);
 }
@@ -49,20 +53,20 @@ function toMarkdown(rs: Result[], seen: Set<string>, date: string, total: number
   const rows = rs.map(r => {
     const j = r.job;
     const esc = (s: string) => s.replace(/\|/g, "/");
-    return `| ${r.score} ${r.label} | ${esc(j.company)} | [${esc(j.title)}](${j.url})${seen.has(j.id) ? "" : " **NEW**"} | ${esc(r.where)} | ${esc(j.pay || "")} | ${j.posted} | ${r.matched.join(", ")} | ${r.missing.join(", ")} | ${esc(r.flags.join("; "))} |`;
+    return `| ${r.score} ${r.label} | ${r.resumeScore} (${r.required.length - r.missingRequired.length}/${r.required.length}) | ${r.fitScore} | ${esc(j.company)} | [${esc(j.title)}](${j.url})${seen.has(j.id) ? "" : " **NEW**"} | ${esc(r.where)} | ${esc(j.pay || "")} | ${j.posted} | ${r.matched.join(", ")} | ${r.missingRequired.join(", ")} | ${r.missingNice.join(", ")} | ${esc(r.keywords.join(", "))} | ${esc(r.flags.join("; "))} |`;
   });
-  return `# 职位扫描 ${date}\n\n抓取 ${total} 个职位，符合条件 ${rs.length} 个。\n\n| 分数 | 公司 | 职位 | 地点 | 薪资 | 发布 | 对上的技能 | 缺的技能 | 注意 |\n|---|---|---|---|---|---|---|---|---|\n${rows.join("\n")}\n${errors.length ? `\n## 没抓到的公司\n\n${errors.map(e => `- ${e}`).join("\n")}\n` : ""}`;
+  return `# 职位扫描 ${date}\n\n抓取 ${total} 个职位，符合条件 ${rs.length} 个。\n\n总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项占 75，加分项占 25）；条件分看级别、地点、AI 相关、毕业时间。\n\n| 总分 | 简历 | 条件 | 公司 | 职位 | 地点 | 薪资 | 发布 | 对上的技能 | 缺（必须） | 缺（加分项） | 简历里没有的词 | 注意 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n${rows.join("\n")}\n${errors.length ? `\n## 没抓到的公司\n\n${errors.map(e => `- ${e}`).join("\n")}\n` : ""}`;
 }
 
 async function scan() {
-  const skills = await resumeSkills();
+  const resume = await loadResume();
   const { companies } = JSON.parse(await readFile(resolve(ROOT, "companies.json"), "utf8"));
   const only = opt("company")?.toLowerCase();
   const list = only ? companies.filter((c: string[]) => c[0].toLowerCase().includes(only)) : companies;
   const errors: string[] = [];
   process.stderr.write(`正在抓 ${list.length} 家公司的职位…\n`);
   const jobs: Job[] = await fetchAll(list, e => errors.push(e));
-  const all = jobs.map(j => score(j, skills, cfg, { keepAll: flag("anywhere"), loose: flag("loose") }));
+  const all = jobs.map(j => score(j, resume, cfg, { keepAll: flag("anywhere"), loose: flag("loose") }));
   const kept = all.filter(r => (flag("all") || !r.dropped) && r.score >= (flag("all") ? 0 : cfg.minScore))
     .sort((a, b) => b.score - a.score || b.job.posted.localeCompare(a.job.posted));
 
@@ -88,21 +92,21 @@ async function scan() {
 async function match() {
   const target = args[1];
   if (!target) { console.error("用法：npm run match -- <职位链接 或 .txt 文件>"); process.exit(1); }
-  const skills = await resumeSkills();
+  const resume = await loadResume();
   let job: Job;
   if (/^https?:\/\//.test(target)) job = await fetchOne(target);
   else {
     const text = await readFile(target, "utf8");
     job = { id: target, company: "(pasted)", title: text.split("\n")[0].slice(0, 120), location: "", remote: /remote/i.test(text), url: target, posted: "", pay: "", text };
   }
-  const r = score(job, skills, cfg, { keepAll: true });
+  const r = score(job, resume, cfg, { keepAll: true });
   explain(r);
-  console.log(`\n${C.dim}分数构成：技能 45 · 级别 25 · 地点 15 · AI 相关 10，减去毕业时间和缺语言的扣分。只是关键词规则，最终请自己读 JD。${C.r}`);
+  console.log(`\n${C.dim}总分 = 60% 简历分 + 40% 条件分。简历分：必须项技能覆盖 75 + 加分项覆盖 25，要求里有你没写过的语言每个 -10。条件分：级别 50 + 地点 30 + AI 相关 20，毕业时间不符 -40。\n「简历里没有的词」是职位要求里反复出现、你简历里一次都没出现的词，可以交给改简历的会话参考。只是关键词规则，最终请自己读 JD。${C.r}`);
 }
 
 async function showSkills() {
-  const s = await resumeSkills();
-  console.log(`从简历里认出的技能（${resumePath}）：\n${[...s].join(", ")}`);
+  const { skills } = await loadResume();
+  console.log(`从简历里认出的技能（${resumePath}）：\n${[...skills].join(", ")}`);
   console.log(`\n如果漏了，去 src/skills.ts 加别名，或者在简历里写明。`);
 }
 
