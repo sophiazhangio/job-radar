@@ -135,7 +135,7 @@ async function scan() {
 }
 
 // Write every fetched posting (not just the ones that pass the filters) as one JSON object per line.
-// Used by job-market-search for semantic search and trends. Kept for dumpKeepDays days (default 30).
+// Used by echolocate for semantic search and trends. Kept for dumpKeepDays days (default 30).
 async function dumpAll(jobs: Job[], date: string) {
   const dir = resolve(ROOT, "out/all");
   await mkdir(dir, { recursive: true });

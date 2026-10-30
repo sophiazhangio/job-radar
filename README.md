@@ -38,7 +38,7 @@ Useful `scan` flags: `--top 50` (show more in the terminal), `--company quora` (
 
 - `out/report.html`: overwritten on every run. Filter by location and match level, sort by score or date, search, and expand a posting to see matched skills, missing skills and keywords.
 - `out/<date>.md` and `out/<date>.json`: kept for `keepDays` days (default 7).
-- `out/all/<date>.jsonl` (only with `--dump` or `"dump": true` in the config): every fetched posting, one JSON object per line (`id, company, title, location, remote, url, posted, pay, description`). Kept for `dumpKeepDays` days (default 30). [job-market-search](https://github.com/sophiazhangio/job-market-search) reads these for semantic search and skill trends.
+- `out/all/<date>.jsonl` (only with `--dump` or `"dump": true` in the config): every fetched posting, one JSON object per line (`id, company, title, location, remote, url, posted, pay, description`). Kept for `dumpKeepDays` days (default 30). [echolocate](https://github.com/sophiazhangio/echolocate) reads these for semantic search and skill trends.
 - A posting is marked **NEW** on the day it first shows up (`.cache/seen.json`).
 
 ## How scoring works
