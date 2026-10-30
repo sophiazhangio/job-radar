@@ -18,6 +18,7 @@
     "new-profile": "node src/cli.ts new-profile",
     "add-company": "node src/cli.ts add-company",
     "tailor": "node src/cli.ts tailor",
+    "applied": "node src/cli.ts applied",
     "test": "node --test src/*.test.ts"
   },
   "dependencies": {

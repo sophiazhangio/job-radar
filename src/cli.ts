@@ -316,6 +316,7 @@ else if (cmd === "add-company") { const { addCompany } = await import("./newprof
 else if (cmd === "open") await openReport();
 else if (cmd === "match") await match();
 else if (cmd === "tailor") await tailor();
+else if (cmd === "applied") { const { applied } = await import("./applied.ts"); await applied({ args, opt, root: ROOT, cfg: cfg as any, getJob, scoreJob: async j => score(j, await loadResume(), cfg, { keepAll: true }) }); }
 else if (cmd === "skills") await showSkills();
 else console.log(L(`用法：
   npm run scan                      抓所有公司，按匹配度排序，写报告到 out/

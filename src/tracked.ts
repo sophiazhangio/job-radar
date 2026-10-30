@@ -65,6 +65,9 @@ const isoDate = (s: string) => {
 };
 
 export function sheetJobs(rows: string[][]): Tracked[] {
+  // The header is the first row with a Company column (a summary line above it is skipped).
+  const at = Math.max(0, rows.findIndex(r => r.some(h => /^(company|公司)$/i.test(h.trim()))));
+  rows = rows.slice(at);
   const head = (rows[0] || []).map(h => h.toLowerCase().trim());
   const col = (...re: RegExp[]) => head.findIndex(h => re.some(r => r.test(h)));
   const c = { company: col(/^company/, /公司/), role: col(/^(role|title|position|job)/, /职位/), url: col(/^(link|url)/, /链接/),

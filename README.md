@@ -98,6 +98,15 @@ tailor only picks, orders and chooses between wordings you wrote. It never adds 
 - `profiles/<name>/companies.json`: which boards to fetch. The `software` list leans toward AI, developer-tool, fintech and Los Angeles companies; the `it` list toward Orange County and Los Angeles employers. Add your own; [profiles/README.md](profiles/README.md) shows how to find a company's board.
 - Use `"companies": "path/to/file.json"` in `config.local.json` to point at your own list instead.
 
+## Adding applications to the sheet
+
+`npm run applied -- <posting URL>` adds the posting to your tracker sheet as a new row under the header (newest first): company, role, job-radar score, status `applied`, today's date, location, pay and link. If `npm run tailor` made a resume for that company, "Resume used" is filled too. A posting whose link is already in the sheet only gets its status updated.
+
+- Sites job-radar can't read (LinkedIn, Workday, a company's own page): `npm run applied -- "<url>" --company "Name" --role "Title"` (no score).
+- Other options: `--status oa`, `--resume Mercury`, `--date 2026-10-28`, `--note "referral from Sam"`.
+
+One-time setup: open your sheet → Extensions → Apps Script, paste [tracker/apps-script.gs](tracker/apps-script.gs), change `TOKEN` to any long random text, then Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone) and approve. Put the web app URL in `config.local.json` as `"trackerWebhook"` and the same text as `"trackerToken"`. The sheet's columns are matched by header (Company, Role, Score, Status, Applied, Days, Resume used, Location, Pay, Link, Notes); missing ones are skipped.
+
 ## tracked.json format
 
 **Or use a spreadsheet.** Set `"tracker"` in `config.local.json` to a Google Sheets link (Share → General access → "Anyone with the link" can view), any CSV URL, or a local `.csv` file, and the scan reads it instead of `tracked.json`. Columns are matched by header: Company, Role (or Title/Position), Link (or URL), Status, Applied, Follow-up; others are ignored. Dates like `10/30/2026` are fine.

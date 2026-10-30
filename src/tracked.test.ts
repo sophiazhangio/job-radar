@@ -20,3 +20,8 @@ test("sheetJobs maps loose headers and normalizes dates and status", () => {
   const t = makeLookup(jobs)({ url: "https://jobs.ashbyhq.com/quora/5494e6a1-a973-46af-b9f3-57208eb91b52?src=x", company: "Other", title: "x" } as any);
   assert.equal(t?.status, "applied");
 });
+
+test("sheetJobs skips a summary line above the header", () => {
+  const jobs = sheetJobs(parseCsv(",Applied 3 · Waiting 3\nCompany,Role,Status\nQuora,Full Stack,applied\n"));
+  assert.deepEqual(jobs.map(j => j.company + ":" + j.status), ["Quora:applied"]);
+});
