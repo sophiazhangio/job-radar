@@ -105,7 +105,12 @@ tailor only picks, orders and chooses between wordings you wrote. It never adds 
 - Sites job-radar can't read (LinkedIn, Workday, a company's own page): `npm run applied -- "<url>" --company "Name" --role "Title"` (no score).
 - Other options: `--status oa`, `--resume Mercury`, `--date 2026-10-28`, `--note "referral from Sam"`.
 
-One-time setup: open your sheet → Extensions → Apps Script, paste [tracker/apps-script.gs](tracker/apps-script.gs), change `TOKEN` to any long random text, then Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone) and approve. Put the web app URL in `config.local.json` as `"trackerWebhook"` and the same text as `"trackerToken"`. The sheet's columns are matched by header (Company, Role, Score, Status, Applied, Days, Resume used, Location, Pay, Link, Notes); missing ones are skipped.
+One-time setup:
+
+1. **[Make a copy of the template sheet](https://docs.google.com/spreadsheets/d/1j97SFV3VwCCc2JOh4j3WebtB0BNmRJbOHeXcxXt_iv8/copy)** (columns, status dropdown, day counter and summary row are set up, and the script comes along). Or use your own sheet and paste [tracker/apps-script.gs](tracker/apps-script.gs) into Extensions → Apps Script.
+2. In your copy, open Extensions → Apps Script and change `TOKEN` from `change-me` to any long random text. Save.
+3. Deploy → New deployment → Web app (Execute as: Me, Who has access: Anyone) and approve.
+4. Put the web app URL in `config.local.json` as `"trackerWebhook"` and the same text as `"trackerToken"`. The sheet's columns are matched by header (Company, Role, Score, Status, Applied, Days, Resume used, Location, Pay, Link, Notes); missing ones are skipped.
 
 ## tracked.json format
 
