@@ -195,7 +195,7 @@ async function dumpOnly() {
       placeOk: loc => !NON_US.test(loc) || US.test(loc),
     });
     const { file, postings } = await dumpAll(jobs, new Date().toLocaleDateString("en-CA"));
-    console.log(JSON.stringify({ ok: true, profile: profileName, file, postings, failedBoards: errors.length }));
+    console.log(JSON.stringify({ ok: true, profile: profileName, file, postings, failedBoards: errors.length, failed: errors.slice(0, 20) }));
   } catch (e: any) {
     console.log(JSON.stringify({ ok: false, profile: profileName, error: e.message }));
     process.exit(1);

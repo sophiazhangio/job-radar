@@ -14,17 +14,41 @@ export type Job = {
 
 const UA = { "user-agent": "job-radar (personal job search tool)" };
 
-async function getJson(url: string): Promise<any> {
-  const r = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
-  if (!r.ok) throw new Error(`${r.status} ${url}`);
-  return r.json();
+// Be polite to shared servers (many Workday employers share one host): at most 2 requests at a time per host,
+// and when a server says "too many requests" (429) or is briefly down (503), wait and try again.
+const active = new Map<string, number>();
+const waiting = new Map<string, (() => void)[]>();
+const PER_HOST = 2;
+async function slot(host: string): Promise<() => void> {
+  if ((active.get(host) ?? 0) >= PER_HOST) await new Promise<void>(r => waiting.set(host, [...(waiting.get(host) ?? []), r]));
+  active.set(host, (active.get(host) ?? 0) + 1);
+  return () => {
+    active.set(host, (active.get(host) ?? 1) - 1);
+    const next = waiting.get(host)?.shift();
+    if (next) next();
+  };
+}
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+async function request(url: string, init: RequestInit = {}): Promise<any> {
+  const host = new URL(url).host;
+  for (let attempt = 0; ; attempt++) {
+    const release = await slot(host);
+    let r: Response;
+    try { r = await fetch(url, { ...init, headers: { ...UA, ...(init.headers ?? {}) }, signal: AbortSignal.timeout(20000) }); }
+    finally { release(); }
+    if ((r.status === 429 || r.status === 503) && attempt < 4) {
+      const after = parseInt(r.headers.get("retry-after") ?? "", 10);
+      await sleep(Number.isFinite(after) ? Math.min(after, 60) * 1000 : 2000 * 2 ** attempt);
+      continue;
+    }
+    if (!r.ok) throw new Error(`${r.status} ${url}`);
+    return r.json();
+  }
 }
 
-async function postJson(url: string, body: unknown): Promise<any> {
-  const r = await fetch(url, { method: "POST", headers: { ...UA, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
-  if (!r.ok) throw new Error(`${r.status} ${url}`);
-  return r.json();
-}
+const getJson = (url: string) => request(url);
+const postJson = (url: string, body: unknown) => request(url, { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(body) });
 
 // Run fn over items, at most n at a time.
 async function mapLimit<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Promise<R[]> {
