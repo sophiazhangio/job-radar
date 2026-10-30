@@ -50,8 +50,25 @@ Find a company's board by opening a posting on its careers page and looking at t
 
 ## Adding a profile
 
+### The quick way: draft one with a local AI model
+
+```bash
+npm run new-profile -- nursing "Registered nurse jobs in hospitals and clinics, new grad to 3 years"
+```
+
+This needs [Ollama](https://ollama.com) with a small free model (`ollama pull llama3.2:3b`); it runs on your computer and nothing is sent anywhere. In a minute or two it drafts the skills and job titles, then checks every job board it suggests plus every board in the other profiles, and keeps the boards that answer and post matching titles right now. The result is marked `"draft": true`. Read it over (small models get things wrong), fix what's off, and delete the `"draft"` line.
+
+Add more employers one at a time by pasting a link to any posting on their careers page:
+
+```bash
+npm run add-company -- nursing "https://acme.wd5.myworkdayjobs.com/AcmeCareers/job/..."
+```
+
+### By hand
+
 1. Copy `software` (or the closest profile) to a new folder, e.g. `profiles/nursing`.
 2. Edit `profile.json`: replace the skills, title rules and description.
 3. Edit `companies.json`: list employers that hire for that career, on the board types above.
-4. Try it: `npm run skills -- --profile nursing --resume path/to/resume.pdf`, then `npm run scan -- --profile nursing`.
-5. Pull requests with new profiles are welcome.
+4. Check it: `npm run add-company -- <name> <careers page URL>` adds and tests one board at a time.
+5. Try it: `npm run skills -- --profile nursing --resume path/to/resume.pdf`, then `npm run scan -- --profile nursing`.
+6. Pull requests with new profiles are welcome.

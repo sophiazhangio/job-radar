@@ -9,7 +9,7 @@ A local command-line tool that pulls job postings straight from employers' publi
 - **Matching:** keyword and rule based. It reads your resume PDF, finds the skills on it, and scores each posting on how well your resume covers it and how well it fits what you are looking for.
 - **Output:** a filterable HTML report, a Markdown/JSON report, and a short list in the terminal.
 - **Private:** everything runs on your computer. Your resume, settings and results never leave it.
-- **Cost:** free. No AI or paid API is involved; one run of ~100 companies (~11,000 postings) takes about 10 seconds.
+- **Cost:** free. Scanning and scoring use no AI or paid API (only the optional `new-profile` draft uses a local model); one run of ~100 companies (~11,000 postings) takes about 10 seconds.
 
 > Output is in English by default. Set `"lang": "zh"` in `config.local.json` (or pass `--lang zh`) for Chinese.
 
@@ -33,6 +33,9 @@ npm run match -- <posting URL>    # score one posting (Greenhouse/Ashby/Lever UR
 npm run match -- job.txt          # or a job description saved as text
 npm run skills                    # show which skills were found in your resume
 npm run profiles                  # list career profiles
+npm run dump -- --profile it      # fetch only, write out/all/<profile>/<date>.jsonl (no resume needed)
+npm run new-profile -- <name> "<description>"   # draft a new career profile with a local AI model (see profiles/)
+npm run add-company -- <profile> <careers page URL>  # add one employer's job board, after checking it works
 ```
 
 Run `npm run skills` first: if a skill you have is not found, add it to your resume in plain words or add an alias to your profile's `skills`.
@@ -43,7 +46,7 @@ Useful `scan` flags: `--top 50` (show more in the terminal), `--company quora` (
 
 - `out/report.html`: overwritten on every run. Filter by location and match level, sort by score or date, search, and expand a posting to see matched skills, missing skills and keywords.
 - `out/<date>.md` and `out/<date>.json`: kept for `keepDays` days (default 7).
-- `out/all/<date>.jsonl` (only with `--dump` or `"dump": true` in the config): every fetched posting, one JSON object per line (`id, company, title, location, remote, url, posted, pay, description`). Kept for `dumpKeepDays` days (default 30). [echolocate](https://github.com/sophiazhangio/echolocate) reads these for semantic search and skill trends.
+- `out/all/<date>.jsonl` (only with `--dump` or `"dump": true` in the config): every fetched posting, one JSON object per line (`id, company, title, location, remote, url, posted, pay, description`). Kept for `dumpKeepDays` days (default 30). Profiles other than `software` write to `out/all/<profile>/` instead. [echolocate](https://github.com/sophiazhangio/echolocate) reads these for semantic search and skill trends.
 - A posting is marked **NEW** on the day it first shows up (`.cache/seen.json`).
 
 ## How scoring works

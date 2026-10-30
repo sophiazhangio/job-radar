@@ -13,7 +13,10 @@
     "match": "node src/cli.ts match",
     "skills": "node src/cli.ts skills",
     "profiles": "node src/cli.ts profiles",
-    "open": "node src/cli.ts open"
+    "open": "node src/cli.ts open",
+    "dump": "node src/cli.ts dump",
+    "new-profile": "node src/cli.ts new-profile",
+    "add-company": "node src/cli.ts add-company"
   },
   "dependencies": {
     "unpdf": "1.1.0"

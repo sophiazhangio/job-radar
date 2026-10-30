@@ -24,7 +24,9 @@ const flag = (name: string) => args.includes(`--${name}`);
 const opt = (name: string) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : undefined; };
 
 // Personal settings live in config.local.json (gitignored); config.example.json is the template.
-const cfgPath = ["config.local.json", "config.json"].map(f => resolve(ROOT, f)).find(f => existsSync(f));
+// dump, profiles and new-profile also work before setup, using the example config.
+const NO_SETUP = ["dump", "profiles", "new-profile", "add-company", "help"].includes(cmd);
+const cfgPath = ["config.local.json", "config.json", ...(NO_SETUP ? ["config.example.json"] : [])].map(f => resolve(ROOT, f)).find(f => existsSync(f));
 if (!cfgPath) {
   console.error("No config.local.json yet. Run the setup, which asks a few questions:\n  npm run setup\n(or copy config.example.json to config.local.json and edit it)");
   process.exit(1);
@@ -157,7 +159,8 @@ async function scan() {
 // Write every fetched posting (not just the ones that pass the filters) as one JSON object per line.
 // Used by echolocate for semantic search and trends. Kept for dumpKeepDays days (default 30).
 async function dumpAll(jobs: Job[], date: string) {
-  const dir = resolve(ROOT, OUT, "all");
+  // software keeps out/all/; other profiles get out/all/<profile>/ so dumps never mix (echolocate reads these).
+  const dir = resolve(ROOT, "out", "all", ...(profileName === "software" ? [] : [profileName]));
   await mkdir(dir, { recursive: true });
   const seenIds = new Set<string>();
   const lines: string[] = [];
@@ -176,6 +179,27 @@ async function dumpAll(jobs: Job[], date: string) {
     if (m && keep >= 0 && m[1] < cutoff) await unlink(resolve(dir, f));
   }
   console.log(L(`全量导出：${file}（${lines.length} 个职位，保留 ${keep} 天）`, `Full dump: ${file} (${lines.length} postings, kept ${keep} days)`));
+  return { file, postings: lines.length };
+}
+
+// npm run dump -- --profile <name>: fetch and write the full dump only (no resume, no scoring).
+// The last line is JSON for programs that call this (echolocate).
+async function dumpOnly() {
+  try {
+    const { companies } = JSON.parse(await readFile(companiesFile, "utf8"));
+    const errors: string[] = [];
+    process.stderr.write(L(`正在抓 ${companies.length} 家公司的职位（${profileName}）…\n`, `Fetching ${companies.length} job boards (${profileName})…\n`));
+    const jobs = await fetchAll(companies, e => errors.push(e), {
+      searchTerms: profile.searchTerms ?? [],
+      titleOk: t => !titleAllowed(t, cfg),
+      placeOk: loc => !NON_US.test(loc) || US.test(loc),
+    });
+    const { file, postings } = await dumpAll(jobs, new Date().toLocaleDateString("en-CA"));
+    console.log(JSON.stringify({ ok: true, profile: profileName, file, postings, failedBoards: errors.length }));
+  } catch (e: any) {
+    console.log(JSON.stringify({ ok: false, profile: profileName, error: e.message }));
+    process.exit(1);
+  }
 }
 
 async function match() {
@@ -202,8 +226,9 @@ async function showSkills() {
 }
 
 function showProfiles() {
+  if (flag("json")) { console.log(JSON.stringify(listProfiles())); return; }
   console.log(L("可选的 profile（在 config.local.json 里设 \"profile\"）：", "Career profiles (set \"profile\" in config.local.json):"));
-  for (const p of listProfiles()) console.log(`  ${p.name === profileName ? "*" : " "} ${p.name.padEnd(10)} ${p.description}`);
+  for (const p of listProfiles()) console.log(`  ${p.name === profileName ? "*" : " "} ${p.name.padEnd(10)} ${p.draft ? L("[草稿] ", "[draft] ") : ""}${p.description}`);
   console.log(L(`\n加一个新的：复制 ${PROFILES}/software 改名，再改里面的 profile.json 和 companies.json。`, `\nAdd one: copy ${PROFILES}/software to a new folder and edit its profile.json and companies.json.`));
 }
 
@@ -218,6 +243,9 @@ async function openReport() {
 
 if (cmd === "scan") await scan();
 else if (cmd === "profiles") showProfiles();
+else if (cmd === "dump") await dumpOnly();
+else if (cmd === "new-profile") { const { newProfile } = await import("./newprofile.ts"); await newProfile(args.slice(1)); }
+else if (cmd === "add-company") { const { addCompany } = await import("./newprofile.ts"); await addCompany(args.slice(1)); }
 else if (cmd === "open") await openReport();
 else if (cmd === "match") await match();
 else if (cmd === "skills") await showSkills();

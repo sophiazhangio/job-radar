@@ -28,6 +28,9 @@ npm run match -- <职位链接>       # 给单个职位打分（Greenhouse/Ashby
 npm run match -- job.txt          # 把 JD 复制进 txt 文件也行
 npm run skills                    # 看简历里认出了哪些技能（建议第一次先跑这个）
 npm run profiles                  # 看有哪些职业 profile
+npm run dump -- --profile it      # 只抓不打分，写到 out/all/<profile>/日期.jsonl（不需要简历）
+npm run new-profile -- <名字> "<描述>"   # 用本地 AI 模型起草新的职业 profile（见 profiles/）
+npm run add-company -- <profile> <招聘页链接>  # 加一家公司的招聘板，会先检查能不能抓
 npm run open                      # 打开网页报告
 ```
 

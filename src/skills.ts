@@ -16,6 +16,7 @@ export type Skill = { name: string; re: RegExp; core: boolean };
 export type Profile = {
   name: string;
   description: string;
+  draft?: boolean; // made by npm run new-profile and not reviewed yet
   // pattern: a regular expression tested against lowercase text. "core" skills count double.
   skills: { name: string; pattern: string; core?: boolean }[];
   // Skills where having any one of a "X, Y or Z" list counts (e.g. programming languages).
@@ -36,11 +37,14 @@ export let PROFILE: Profile;
 export let SKILLS: Skill[] = [];
 export let CORE = new Set<string>();
 
-export function listProfiles(): { name: string; description: string }[] {
+export function listProfiles(): { name: string; description: string; draft: boolean }[] {
   if (!existsSync(PROFILES)) return [];
   return readdirSync(PROFILES)
     .filter(n => existsSync(resolve(PROFILES, n, "profile.json")))
-    .map(n => ({ name: n, description: JSON.parse(readFileSync(resolve(PROFILES, n, "profile.json"), "utf8")).description ?? "" }));
+    .map(n => {
+      const p = JSON.parse(readFileSync(resolve(PROFILES, n, "profile.json"), "utf8"));
+      return { name: n, description: p.description ?? "", draft: !!p.draft };
+    });
 }
 
 export function useProfile(name = "software"): Profile {
