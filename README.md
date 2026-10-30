@@ -5,7 +5,7 @@ English · [中文](README.zh-CN.md)
 A local command-line tool that pulls job postings straight from employers' public job boards and ranks them against your resume.
 
 - **Career profiles:** pick the kind of job you want. It comes with `software` (entry-level software engineering) and `it` (IT support and systems administration), and a profile is just two JSON files, so more can be added without code. See [profiles/](profiles/README.md).
-- **Sources:** the public job-board APIs of Greenhouse, Ashby, Lever, Workday, SmartRecruiters and BambooHR, the systems behind most employers' career pages. No login, no scraping of LinkedIn or Indeed, and nothing is submitted anywhere.
+- **Sources:** the public job-board APIs of Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR and Oracle Recruiting, the systems behind most employers' career pages. No login, no scraping of LinkedIn or Indeed, and nothing is submitted anywhere.
 - **Matching:** keyword and rule based. It reads your resume PDF, finds the skills on it, and scores each posting on how well your resume covers it and how well it fits what you are looking for.
 - **Output:** a filterable HTML report, a Markdown/JSON report, and a short list in the terminal.
 - **Private:** everything runs on your computer. Your resume, settings and results never leave it.
@@ -103,7 +103,7 @@ If your application tracker can export a `tracked.json`, the scan picks up the n
 
 ```
 profiles/        career profiles: skills, title rules, company lists
-src/sources.ts   fetch Greenhouse / Ashby / Lever / Workday / SmartRecruiters / BambooHR boards
+src/sources.ts   fetch Greenhouse / Ashby / Lever / Workday / SmartRecruiters / BambooHR / Oracle boards
 src/score.ts     filters, required vs nice-to-have split, resume and fit scores, keyword gaps
 src/skills.ts    profile loading and skill matching
 src/setup.ts     npm run setup
@@ -115,7 +115,7 @@ src/cli.ts       commands and report writing
 
 ## Limitations
 
-- Only employers listed in the profile's `companies.json`, on the six supported boards, are covered. Employers on other systems (Paylocity, iCIMS, custom career sites) and jobs posted only on Indeed or LinkedIn are not.
+- Only employers listed in the profile's `companies.json`, on the seven supported boards, are covered. Employers on other systems (Paylocity, iCIMS, custom career sites) and jobs posted only on Indeed or LinkedIn are not.
 - On Windows the keyword-gap list is noisier, because it uses the macOS/Linux word list to skip common English words.
 - Location and level detection rely on how each posting is written and can be wrong. Open the posting before applying.
 

@@ -77,8 +77,8 @@ export type Result = {
   tracked?: { status: string; applied: string }; // from the online tracker export
 };
 
-const NON_US = /\beu\b|europe|uk&i|canada|toronto|vancouver|montreal|london|\buk\b|united kingdom|ireland|dublin|germany|berlin|munich|france|paris|india|bangalore|bengaluru|hyderabad|singapore|japan|tokyo|australia|sydney|brazil|mexico|poland|warsaw|netherlands|amsterdam|spain|madrid|israel|tel aviv|emea|apac|latam|korea|seoul|philippines|argentina|colombia/i;
-const US = /\bus\b|\busa\b|u\.s\.|united states|north america|americas|anywhere/i;
+export const NON_US = /\beu\b|europe|uk&i|canada|toronto|vancouver|montreal|london|\buk\b|united kingdom|ireland|dublin|germany|berlin|munich|france|paris|india|bangalore|bengaluru|hyderabad|singapore|japan|tokyo|australia|sydney|brazil|mexico|poland|warsaw|netherlands|amsterdam|spain|madrid|israel|tel aviv|emea|apac|latam|korea|seoul|philippines|argentina|colombia/i;
+export const US = /\bus\b|\busa\b|u\.s\.|united states|north america|americas|anywhere/i;
 
 export function whereFits(job: Job, cfg: Config): string {
   const loc = job.location.toLowerCase();

@@ -178,7 +178,8 @@
       "systems (specialist|technician)",
       "microsoft 365|\\bm365\\b",
       "field technician",
-      "noc (technician|analyst|engineer)"
+      "noc (technician|analyst|engineer)",
+      "\\bis (customer |client )?(support|services)|\\bis technician|support administrator"
     ],
     "excludeTitle": [
       "senior",

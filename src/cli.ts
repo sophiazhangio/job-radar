@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { readResume } from "./resume.ts";
 import { findSkills, useProfile, listProfiles, bonusLabel, PROFILES } from "./skills.ts";
 import { fetchAll, fetchOne, type Job } from "./sources.ts";
-import { score, titleAllowed, type Config, type Result, type Resume } from "./score.ts";
+import { score, titleAllowed, NON_US, US, type Config, type Result, type Resume } from "./score.ts";
 import { toHtml } from "./html.ts";
 import { loadTracked, makeLookup, statusLabel, FINISHED } from "./tracked.ts";
 import { L, setLang } from "./i18n.ts";
@@ -101,6 +101,7 @@ async function scan() {
   const jobs: Job[] = await fetchAll(list, e => errors.push(e), {
     searchTerms: profile.searchTerms ?? [],
     titleOk: t => flag("all") || !titleAllowed(t, cfg),
+    placeOk: loc => flag("all") || flag("anywhere") || !NON_US.test(loc) || US.test(loc) || cfg.locations.cities.some(c => loc.toLowerCase().includes(c)),
   });
   const all = jobs.map(j => score(j, resume, cfg, { keepAll: flag("anywhere"), loose: flag("loose") }));
   // Mark postings already in the online tracker; hide the ones you are done with (rejected, closed, skipped).

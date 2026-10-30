@@ -38,7 +38,9 @@ async function mapLimit<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): 
 
 // Options for boards that are searched rather than listed in full: search words, and a title
 // filter applied before fetching each posting's details (big employers list thousands of jobs).
-export type FetchOpts = { searchTerms: string[]; titleOk: (title: string) => boolean };
+// placeOk skips postings whose listed location is clearly outside your search (checked before fetching details).
+export type FetchOpts = { searchTerms: string[]; titleOk: (title: string) => boolean; placeOk?: (location: string) => boolean };
+const placeOk = (o: FetchOpts, loc: string | undefined) => !loc || !o.placeOk || o.placeOk(loc);
 
 const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'", nbsp: " " };
 export function decode(s: string): string {
@@ -119,7 +121,7 @@ async function workday(company: string, token: string, o: FetchOpts): Promise<Jo
       if (!d.jobPostings?.length || offset + 20 >= (d.total ?? 0)) break;
     }
   }
-  const picked = [...found.values()].filter(p => o.titleOk(p.title ?? ""));
+  const picked = [...found.values()].filter(p => o.titleOk(p.title ?? "") && placeOk(o, p.locationsText));
   const jobs = await mapLimit(picked, 4, async p => {
     try {
       const j = (await getJson(`${api}${p.externalPath}`)).jobPostingInfo ?? {};
@@ -146,7 +148,7 @@ async function smartrecruiters(company: string, token: string, o: FetchOpts): Pr
       if (!d.content?.length || offset + 100 >= (d.totalFound ?? 0)) break;
     }
   }
-  const picked = [...found.values()].filter(p => o.titleOk(p.name ?? ""));
+  const picked = [...found.values()].filter(p => o.titleOk(p.name ?? "") && placeOk(o, [p.location?.city, p.location?.region, p.location?.country].filter(Boolean).join(", ")));
   const jobs = await mapLimit(picked, 4, async p => {
     try {
       const j = await getJson(`${api}/${p.id}`);
@@ -186,7 +188,39 @@ async function bamboohr(company: string, token: string, o: FetchOpts): Promise<J
   return jobs.filter((j): j is Job => !!j);
 }
 
-const FETCHERS: Record<string, (c: string, t: string, o: FetchOpts) => Promise<Job[]>> = { greenhouse, ashby, lever, workday, smartrecruiters, bamboohr };
+// Oracle Recruiting Cloud (many health systems). token = "host/site", from a URL like
+// https://host.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/...  -> "host/CX_1" (e.g. "evac.fa.us2/CX_1")
+async function oracle(company: string, token: string, o: FetchOpts): Promise<Job[]> {
+  const [host, site] = token.split("/");
+  const api = `https://${host}.oraclecloud.com/hcmRestApi/resources/latest`;
+  const found = new Map<string, any>();
+  for (const q of o.searchTerms.length ? o.searchTerms : [""]) {
+    for (let offset = 0; offset < 100; offset += 25) {
+      const finder = `findReqs;siteNumber=${site},limit=25,offset=${offset}${q ? `,keyword=${encodeURIComponent(q)}` : ""}`;
+      const d = await getJson(`${api}/recruitingCEJobRequisitions?onlyData=true&expand=requisitionList&finder=${finder}`);
+      const page = d.items?.[0]?.requisitionList ?? [];
+      for (const r of page) found.set(r.Id, r);
+      if (!page.length || offset + 25 >= (d.items?.[0]?.TotalJobsCount ?? 0)) break;
+    }
+  }
+  const picked = [...found.values()].filter(r => o.titleOk(r.Title ?? "") && placeOk(o, r.PrimaryLocation));
+  const jobs = await mapLimit(picked, 4, async r => {
+    try {
+      const d = (await getJson(`${api}/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%22${r.Id}%22,siteNumber=${site}`)).items?.[0] ?? {};
+      const text = ["ExternalDescriptionStr", "ExternalResponsibilitiesStr", "ExternalQualificationsStr"].map(k => htmlToText(d[k] ?? "")).filter(Boolean).join("\n");
+      const loc = d.PrimaryLocation ?? r.PrimaryLocation ?? "";
+      const remote = /REMOTE/.test(d.WorkplaceTypeCode ?? r.WorkplaceTypeCode ?? "");
+      return {
+        id: `or:${host}:${r.Id}`, company, title: d.Title ?? r.Title, location: (remote ? "Remote; " : "") + loc, remote,
+        url: `https://${host}.oraclecloud.com/hcmUI/CandidateExperience/en/sites/${site}/job/${r.Id}`,
+        posted: day(r.PostedDate ?? d.ExternalPostedStartDate), pay: payFromText(text), text,
+      } as Job;
+    } catch { return null; }
+  });
+  return jobs.filter((j): j is Job => !!j);
+}
+
+const FETCHERS: Record<string, (c: string, t: string, o: FetchOpts) => Promise<Job[]>> = { greenhouse, ashby, lever, workday, smartrecruiters, bamboohr, oracle };
 
 export async function fetchAll(list: [string, string, string][], onError: (msg: string) => void, opts: FetchOpts = { searchTerms: [], titleOk: () => true }): Promise<Job[]> {
   const out: Job[] = [];

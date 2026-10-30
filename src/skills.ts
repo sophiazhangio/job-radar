@@ -26,7 +26,7 @@ export type Profile = {
   bonus?: { label: { en: string; zh?: string }; full?: string[]; partial?: string[] };
   // Extra title words that mark an entry or early-career role, as a regular expression.
   entryTitle?: string;
-  // Search words for boards that are searched instead of listed in full (Workday, SmartRecruiters).
+  // Search words for boards that are searched instead of listed in full (Workday, SmartRecruiters, Oracle).
   searchTerms?: string[];
   // Default search rules; any key here can be overridden in config.local.json.
   defaults?: Record<string, unknown>;

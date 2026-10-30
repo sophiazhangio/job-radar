@@ -27,7 +27,7 @@ profiles/<name>/
 | `gapPenalty` | Required skills that cost 10 points each when missing from the resume. |
 | `bonus` | Up to 20 fit points: 20 if the posting mentions any `full` skill, else 10 per `partial` skill. `label` names it in reports. |
 | `entryTitle` | Extra title words, as a regular expression, that mark an entry or early-career role. |
-| `searchTerms` | Search words for Workday and SmartRecruiters boards, which are searched instead of listed in full. |
+| `searchTerms` | Search words for Workday, SmartRecruiters and Oracle boards, which are searched instead of listed in full. |
 | `defaults` | Default search rules: `includeTitle` / `excludeTitle` (plain text found in the title), `includeTitleRe` / `excludeTitleRe` (regular expressions, useful for short words like `\\bit\\b`), `excludeText`, `maxYears`, `requireLevel` (drop postings that state no level or years), `maxTitleLevel` (1 drops "II" and up, 2 drops "III" and up). Any of these can be overridden in `config.local.json`. |
 
 ### companies.json
@@ -44,6 +44,7 @@ profiles/<name>/
 | `workday` | `tenant.wdN/site` | `acme.wd5.myworkdayjobs.com/AcmeCareers` → `acme.wd5/AcmeCareers` |
 | `smartrecruiters` | company id | `jobs.smartrecruiters.com/Acme1` → `Acme1` |
 | `bamboohr` | subdomain | `acme.bamboohr.com/careers` → `acme` |
+| `oracle` | `host/site` | `abcd.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1` → `abcd.fa.us2/CX_1` |
 
 Find a company's board by opening a posting on its careers page and looking at the address.
 
