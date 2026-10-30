@@ -1,9 +1,7 @@
 // `npm run applied -- <posting>`: add a posting you applied to as a new row in your tracker sheet,
 // through the Apps Script receiver in tracker/apps-script.gs. Score, link, location and pay come from
-// job-radar; the resume version is filled when out/tailored/ has one for that company.
+// job-radar; the resume version is yours to pick (or pass --resume).
 
-import { existsSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
 import type { Job } from "./sources.ts";
 import type { Result } from "./score.ts";
 import { L } from "./i18n.ts";
@@ -15,14 +13,8 @@ type Ctx = {
 };
 
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
-// A tailored resume made for this company (out/tailored/<company>-<title>/) → its label, the company name.
-export function resumeLabel(root: string, company: string): string {
-  const dir = resolve(root, "out/tailored");
-  if (!company || !existsSync(dir)) return "";
-  return readdirSync(dir).some(d => d.startsWith(slug(company) + "-")) ? company : "";
-}
+// Board slugs come back lowercase ("quora"); show them as a name.
+export const companyName = (s: string) => (s && s === s.toLowerCase() ? s.replace(/(^|[\s-])([a-z])/g, (_, a, b) => a + b.toUpperCase()) : s);
 
 export async function applied(ctx: Ctx) {
   const { args, opt, cfg } = ctx;
@@ -49,14 +41,14 @@ export async function applied(ctx: Ctx) {
       "Usage: npm run applied -- <posting URL> [--resume Name] [--status applied]\n   or: npm run applied -- --company \"Name\" --role \"Title\" [--link URL]"));
     process.exit(1);
   }
-  const company = opt("company") ?? job?.company ?? "";
+  const company = opt("company") ?? companyName(job?.company ?? "");
   const row: Record<string, string | number> = {
     Company: company,
     Role: opt("role") ?? job?.title ?? "",
     Score: r ? r.score : "",
     Status: (opt("status") ?? "applied").toLowerCase(),
     Applied: opt("date") ?? today(),
-    "Resume used": opt("resume") ?? resumeLabel(ctx.root, company),
+    "Resume used": opt("resume") ?? "",
     Location: job ? (job.remote ? `Remote${job.location ? " / " + job.location : ""}` : job.location) : "",
     Pay: job?.pay ?? "",
     Link: opt("link") ?? (/^https?:\/\//.test(target) ? target : ""),

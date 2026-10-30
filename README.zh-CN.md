@@ -50,7 +50,7 @@ npm run open                      # 打开网页报告
 - 状态是「被拒」「职位已关」「不投了」的职位不再显示。
 - 网页报告里可以勾「隐藏已追踪」，只看还没处理的。
 
-投完一个职位，`npm run applied -- <职位链接>` 会在表格表头下面加一行（最新的在最上面），填好公司、职位、job-radar 分数、状态 `applied`、今天的日期、地点、薪资和链接；用 `npm run tailor` 给这家公司做过简历的话，"Resume used" 也会填上。链接已经在表里的，只更新状态。job-radar 读不到的网站（LinkedIn、Workday、公司官网）加 `--company "公司" --role "职位"`。第一次要在表格里装一个 Apps Script（扩展程序 → Apps Script，贴上 [tracker/apps-script.gs](tracker/apps-script.gs)，部署成网页应用），步骤见英文 README 的 "Adding applications to the sheet"。
+投完一个职位，`npm run applied -- <职位链接>` 会在表格表头下面加一行（最新的在最上面），填好公司、职位、job-radar 分数、状态 `applied`、今天的日期、地点、薪资和链接；"Resume used" 在表格里自己选，或者加 `--resume 版本`。链接已经在表里的，只更新状态。job-radar 读不到的网站（LinkedIn、Workday、公司官网）加 `--company "公司" --role "职位"`。第一次要在表格里装一个 Apps Script（扩展程序 → Apps Script，贴上 [tracker/apps-script.gs](tracker/apps-script.gs)，部署成网页应用），步骤见英文 README 的 "Adding applications to the sheet"。
 
 追踪表更新后想同步，就再导出一次。全程不用 AI，不用登录。文件格式见英文 README 的 "tracked.json format"。
 

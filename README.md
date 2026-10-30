@@ -100,7 +100,7 @@ tailor only picks, orders and chooses between wordings you wrote. It never adds 
 
 ## Adding applications to the sheet
 
-`npm run applied -- <posting URL>` adds the posting to your tracker sheet as a new row under the header (newest first): company, role, job-radar score, status `applied`, today's date, location, pay and link. If `npm run tailor` made a resume for that company, "Resume used" is filled too. A posting whose link is already in the sheet only gets its status updated.
+`npm run applied -- <posting URL>` adds the posting to your tracker sheet as a new row under the header (newest first): company, role, job-radar score, status `applied`, today's date, location, pay and link. Pick "Resume used" in the sheet, or pass `--resume Name`. A posting whose link is already in the sheet only gets its status updated.
 
 - Sites job-radar can't read (LinkedIn, Workday, a company's own page): `npm run applied -- "<url>" --company "Name" --role "Title"` (no score).
 - Other options: `--status oa`, `--resume Mercury`, `--date 2026-10-28`, `--note "referral from Sam"`.
