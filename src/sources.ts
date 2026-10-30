@@ -20,6 +20,26 @@ async function getJson(url: string): Promise<any> {
   return r.json();
 }
 
+async function postJson(url: string, body: unknown): Promise<any> {
+  const r = await fetch(url, { method: "POST", headers: { ...UA, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
+  if (!r.ok) throw new Error(`${r.status} ${url}`);
+  return r.json();
+}
+
+// Run fn over items, at most n at a time.
+async function mapLimit<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (i < items.length) { const k = i++; out[k] = await fn(items[k]); }
+  }));
+  return out;
+}
+
+// Options for boards that are searched rather than listed in full: search words, and a title
+// filter applied before fetching each posting's details (big employers list thousands of jobs).
+export type FetchOpts = { searchTerms: string[]; titleOk: (title: string) => boolean };
+
 const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'", nbsp: " " };
 export function decode(s: string): string {
   return s.replace(/&(#\d+|#x[0-9a-f]+|\w+);/gi, (m, e) => {
@@ -85,15 +105,98 @@ async function lever(company: string, token: string): Promise<Job[]> {
   });
 }
 
-const FETCHERS: Record<string, (c: string, t: string) => Promise<Job[]>> = { greenhouse, ashby, lever };
+// Workday career sites. token = "tenant.wdN/site", from a URL like https://tenant.wdN.myworkdayjobs.com/site
+async function workday(company: string, token: string, o: FetchOpts): Promise<Job[]> {
+  const [host, site] = token.split("/");
+  const tenant = host.split(".")[0];
+  const base = `https://${host}.myworkdayjobs.com`;
+  const api = `${base}/wday/cxs/${tenant}/${site}`;
+  const found = new Map<string, any>();
+  for (const q of o.searchTerms.length ? o.searchTerms : [""]) {
+    for (let offset = 0; offset < 200; offset += 20) {
+      const d = await postJson(`${api}/jobs`, { appliedFacets: {}, limit: 20, offset, searchText: q });
+      for (const p of d.jobPostings ?? []) if (p.externalPath && !found.has(p.externalPath)) found.set(p.externalPath, p);
+      if (!d.jobPostings?.length || offset + 20 >= (d.total ?? 0)) break;
+    }
+  }
+  const picked = [...found.values()].filter(p => o.titleOk(p.title ?? ""));
+  const jobs = await mapLimit(picked, 4, async p => {
+    try {
+      const j = (await getJson(`${api}${p.externalPath}`)).jobPostingInfo ?? {};
+      const text = htmlToText(j.jobDescription ?? "");
+      const loc = [j.location ?? p.locationsText, ...(j.additionalLocations ?? [])].filter(Boolean).join("; ");
+      return {
+        id: `wd:${tenant}:${j.jobReqId ?? p.externalPath}`, company, title: j.title ?? p.title, location: loc,
+        remote: /remote/i.test(`${j.remoteType ?? ""} ${loc}`), url: j.externalUrl ?? `${base}/${site}${p.externalPath}`,
+        posted: j.startDate ? day(j.startDate) : "", pay: payFromText(text), text,
+      } as Job;
+    } catch { return null; }
+  });
+  return jobs.filter((j): j is Job => !!j);
+}
 
-export async function fetchAll(list: [string, string, string][], onError: (msg: string) => void): Promise<Job[]> {
+// SmartRecruiters. token = the company id in https://jobs.smartrecruiters.com/<CompanyId>
+async function smartrecruiters(company: string, token: string, o: FetchOpts): Promise<Job[]> {
+  const api = `https://api.smartrecruiters.com/v1/companies/${token}/postings`;
+  const found = new Map<string, any>();
+  for (const q of o.searchTerms.length ? o.searchTerms : [""]) {
+    for (let offset = 0; offset < 500; offset += 100) {
+      const d = await getJson(`${api}?limit=100&offset=${offset}${q ? `&q=${encodeURIComponent(q)}` : ""}`);
+      for (const p of d.content ?? []) found.set(p.id, p);
+      if (!d.content?.length || offset + 100 >= (d.totalFound ?? 0)) break;
+    }
+  }
+  const picked = [...found.values()].filter(p => o.titleOk(p.name ?? ""));
+  const jobs = await mapLimit(picked, 4, async p => {
+    try {
+      const j = await getJson(`${api}/${p.id}`);
+      const sec = j.jobAd?.sections ?? {};
+      const text = ["jobDescription", "qualifications", "additionalInformation"].map(k => sec[k] ? `${sec[k].title ?? ""}\n${htmlToText(sec[k].text ?? "")}` : "").filter(Boolean).join("\n");
+      const l = j.location ?? p.location ?? {};
+      const loc = [l.city, l.region, l.country?.toUpperCase()].filter(Boolean).join(", ");
+      return {
+        id: `sr:${token}:${p.id}`, company, title: j.name ?? p.name, location: (l.remote ? "Remote; " : "") + loc,
+        remote: !!l.remote, url: j.postingUrl ?? `https://jobs.smartrecruiters.com/${token}/${p.id}`,
+        posted: day(j.releasedDate ?? p.releasedDate), pay: payFromText(text), text,
+      } as Job;
+    } catch { return null; }
+  });
+  return jobs.filter((j): j is Job => !!j);
+}
+
+// BambooHR career pages, common at small companies. token = the subdomain in https://<token>.bamboohr.com/careers
+async function bamboohr(company: string, token: string, o: FetchOpts): Promise<Job[]> {
+  const base = `https://${token}.bamboohr.com/careers`;
+  const d = await getJson(`${base}/list`);
+  const picked = (d.result ?? []).filter((p: any) => o.titleOk(p.jobOpeningName ?? ""));
+  const jobs = await mapLimit(picked, 4, async (p: any) => {
+    try {
+      const j = (await getJson(`${base}/${p.id}/detail`)).result?.jobOpening ?? {};
+      const text = htmlToText(j.description ?? "");
+      const l = j.location ?? p.location ?? {};
+      const loc = [l.city, l.state ?? l.addressState].filter(Boolean).join(", ");
+      const remote = !!(j.isRemote ?? p.isRemote) || j.locationType === "1";
+      return {
+        id: `bh:${token}:${p.id}`, company, title: j.jobOpeningName ?? p.jobOpeningName, location: (remote ? "Remote; " : "") + loc,
+        remote, url: j.jobOpeningShareUrl ?? `${base}/${p.id}`, posted: j.datePosted ? day(j.datePosted) : "",
+        pay: j.compensation || payFromText(text), text,
+      } as Job;
+    } catch { return null; }
+  });
+  return jobs.filter((j): j is Job => !!j);
+}
+
+const FETCHERS: Record<string, (c: string, t: string, o: FetchOpts) => Promise<Job[]>> = { greenhouse, ashby, lever, workday, smartrecruiters, bamboohr };
+
+export async function fetchAll(list: [string, string, string][], onError: (msg: string) => void, opts: FetchOpts = { searchTerms: [], titleOk: () => true }): Promise<Job[]> {
   const out: Job[] = [];
   let i = 0;
   const worker = async () => {
     while (i < list.length) {
       const [company, ats, token] = list[i++];
-      try { out.push(...(await FETCHERS[ats](company, token))); }
+      const fetcher = FETCHERS[ats];
+      if (!fetcher) { onError(`${company}: unknown board type "${ats}"`); continue; }
+      try { out.push(...(await fetcher(company, token, opts))); }
       catch (e: any) { onError(`${company} (${ats}/${token}): ${e.message}`); }
     }
   };

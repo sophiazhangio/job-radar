@@ -10,9 +10,9 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readResume } from "./resume.ts";
-import { findSkills } from "./skills.ts";
+import { findSkills, useProfile, listProfiles, bonusLabel, PROFILES } from "./skills.ts";
 import { fetchAll, fetchOne, type Job } from "./sources.ts";
-import { score, type Config, type Result, type Resume } from "./score.ts";
+import { score, titleAllowed, type Config, type Result, type Resume } from "./score.ts";
 import { toHtml } from "./html.ts";
 import { loadTracked, makeLookup, statusLabel, FINISHED } from "./tracked.ts";
 import { L, setLang } from "./i18n.ts";
@@ -26,11 +26,22 @@ const opt = (name: string) => { const i = args.indexOf(`--${name}`); return i >=
 // Personal settings live in config.local.json (gitignored); config.example.json is the template.
 const cfgPath = ["config.local.json", "config.json"].map(f => resolve(ROOT, f)).find(f => existsSync(f));
 if (!cfgPath) {
-  console.error("No config.local.json yet. Copy the template and edit it:\n  cp config.example.json config.local.json");
+  console.error("No config.local.json yet. Run the setup, which asks a few questions:\n  npm run setup\n(or copy config.example.json to config.local.json and edit it)");
   process.exit(1);
 }
-const cfg: Config & { resume: string; keepDays?: number; dump?: boolean; dumpKeepDays?: number; lang?: string } = JSON.parse(await readFile(cfgPath, "utf8"));
-setLang(opt("lang") ?? cfg.lang);
+type Settings = Config & { resume: string; companies?: string; keepDays?: number; dump?: boolean; dumpKeepDays?: number; lang?: string };
+const local: Settings = JSON.parse(await readFile(cfgPath, "utf8"));
+setLang(opt("lang") ?? local.lang);
+// The profile supplies default rules; anything set in config.local.json wins.
+const profileName = opt("profile") ?? local.profile ?? "software";
+let profile;
+try { profile = useProfile(profileName); } catch (e: any) { console.error(e.message); process.exit(1); }
+const cfg: Settings = { ...(profile.defaults as object), ...local, profile: profileName } as Settings;
+// A one-off --profile run that differs from your config writes to out/<profile>/ so your own report stays as it is.
+const oneOff = profileName !== (local.profile ?? "software");
+const OUT = oneOff ? `out/${profileName}` : "out";
+const CACHE = oneOff ? `.cache/seen-${profileName}.json` : ".cache/seen.json";
+const companiesFile = resolve(ROOT, cfg.companies ?? `profiles/${profileName}/companies.json`);
 const resumePath = resolve(ROOT, opt("resume") ?? cfg.resume);
 
 async function loadResume(): Promise<Resume> {
@@ -62,6 +73,11 @@ function explain(r: Result, isNew = false) {
   if (r.dropped) console.log(`    ${C.y}${L("会被 scan 过滤掉", "scan would filter this out")}: ${r.dropped}${C.r}`);
 }
 
+// What the fit score looks at, for report footers.
+function fitWhat(): string {
+  return [L("级别", "level"), L("地点", "location"), profile.bonus ? bonusLabel() : "", cfg.graduation ? L("毕业时间", "graduation window") : ""].filter(Boolean).join(L("、", ", "));
+}
+
 function toMarkdown(rs: Result[], seen: Set<string>, date: string, total: number, errors: string[]): string {
   const rows = rs.map(r => {
     const j = r.job;
@@ -69,20 +85,23 @@ function toMarkdown(rs: Result[], seen: Set<string>, date: string, total: number
     return `| ${r.score} ${r.label} | ${r.resumeScore} (${r.required.length - r.missingRequired.length}/${r.required.length}) | ${r.fitScore} | ${esc(j.company)} | [${esc(j.title)}](${j.url})${seen.has(j.id) ? "" : " **NEW**"}${r.tracked ? " " + trackedTag(r) : ""} | ${esc(r.where)} | ${esc(j.pay || "")} | ${j.posted} | ${r.matched.join(", ")} | ${r.missingRequired.join(", ")} | ${r.missingNice.join(", ")} | ${esc(r.keywords.join(", "))} | ${esc(r.flags.join("; "))} |`;
   });
   const head = L(
-    `# 职位扫描 ${date}\n\n抓取 ${total} 个职位，符合条件 ${rs.length} 个。\n\n总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项占 75，加分项占 25）；条件分看级别、地点、AI 相关、毕业时间。\n\n| 总分 | 简历 | 条件 | 公司 | 职位 | 地点 | 薪资 | 发布 | 对上的技能 | 缺（必须） | 缺（加分项） | 简历里没有的词 | 注意 |`,
-    `# Job scan ${date}\n\nFetched ${total} postings, ${rs.length} match.\n\nTotal = 60% resume score + 40% fit score. Resume score: how much of the posting's skills your resume covers (required 75, nice-to-have 25). Fit score: level, location, AI focus, graduation window.\n\n| Total | Resume | Fit | Company | Role | Location | Pay | Posted | Skills you have | Missing (required) | Missing (nice) | Not on your resume | Notes |`);
+    `# 职位扫描 ${date}\n\n抓取 ${total} 个职位，符合条件 ${rs.length} 个。\n\n总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项占 75，加分项占 25）；条件分看${fitWhat()}。\n\n| 总分 | 简历 | 条件 | 公司 | 职位 | 地点 | 薪资 | 发布 | 对上的技能 | 缺（必须） | 缺（加分项） | 简历里没有的词 | 注意 |`,
+    `# Job scan ${date}\n\nFetched ${total} postings, ${rs.length} match.\n\nTotal = 60% resume score + 40% fit score. Resume score: how much of the posting's skills your resume covers (required 75, nice-to-have 25). Fit score: ${fitWhat()}.\n\n| Total | Resume | Fit | Company | Role | Location | Pay | Posted | Skills you have | Missing (required) | Missing (nice) | Not on your resume | Notes |`);
   const failed = errors.length ? `\n## ${L("没抓到的公司", "Boards that failed")}\n\n${errors.map(e => `- ${e}`).join("\n")}\n` : "";
   return `${head}\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n${rows.join("\n")}\n${failed}`;
 }
 
 async function scan() {
   const resume = await loadResume();
-  const { companies } = JSON.parse(await readFile(resolve(ROOT, "companies.json"), "utf8"));
+  const { companies } = JSON.parse(await readFile(companiesFile, "utf8"));
   const only = opt("company")?.toLowerCase();
   const list = only ? companies.filter((c: string[]) => c[0].toLowerCase().includes(only)) : companies;
   const errors: string[] = [];
   process.stderr.write(L(`正在抓 ${list.length} 家公司的职位…\n`, `Fetching ${list.length} job boards…\n`));
-  const jobs: Job[] = await fetchAll(list, e => errors.push(e));
+  const jobs: Job[] = await fetchAll(list, e => errors.push(e), {
+    searchTerms: profile.searchTerms ?? [],
+    titleOk: t => flag("all") || !titleAllowed(t, cfg),
+  });
   const all = jobs.map(j => score(j, resume, cfg, { keepAll: flag("anywhere"), loose: flag("loose") }));
   // Mark postings already in the online tracker; hide the ones you are done with (rejected, closed, skipped).
   const tracked = await loadTracked(ROOT);
@@ -96,7 +115,7 @@ async function scan() {
 
   // First-seen date per job. A job stays NEW for the whole day it first appeared.
   const date = new Date().toLocaleDateString("en-CA");
-  const cacheFile = resolve(ROOT, ".cache/seen.json");
+  const cacheFile = resolve(ROOT, CACHE);
   const raw = existsSync(cacheFile) ? JSON.parse(await readFile(cacheFile, "utf8")) : {};
   const firstSeen: Record<string, string> = Array.isArray(raw) ? Object.fromEntries(raw.map((id: string) => [id, "2000-01-01"])) : raw;
   const isNewId = (id: string) => !firstSeen[id] || firstSeen[id] >= date;
@@ -106,13 +125,13 @@ async function scan() {
   const top = parseInt(opt("top") ?? "30", 10);
   for (const r of kept.slice(0, top)) { explain(r, isNew(r.job.id)); console.log(); }
 
-  await mkdir(resolve(ROOT, "out"), { recursive: true });
+  await mkdir(resolve(ROOT, OUT), { recursive: true });
   await mkdir(resolve(ROOT, ".cache"), { recursive: true });
-  const md = resolve(ROOT, `out/${date}.md`);
+  const md = resolve(ROOT, OUT, `${date}.md`);
   await writeFile(md, toMarkdown(kept, seen, date, jobs.length, errors));
-  await writeFile(resolve(ROOT, `out/${date}.json`), JSON.stringify(kept.map(r => ({ ...r, job: { ...r.job, text: undefined }, new: isNew(r.job.id) })), null, 2));
-  const page = resolve(ROOT, "out/report.html");
-  await writeFile(page, toHtml(kept.map(r => ({ ...r, isNew: isNew(r.job.id) })), { date, fetched: jobs.length, companies: list.length, errors, trackedFile: tracked?.file ?? "", localLabel: cfg.locations.label || "Local" }));
+  await writeFile(resolve(ROOT, OUT, `${date}.json`), JSON.stringify(kept.map(r => ({ ...r, job: { ...r.job, text: undefined }, new: isNew(r.job.id) })), null, 2));
+  const page = resolve(ROOT, OUT, "report.html");
+  await writeFile(page, toHtml(kept.map(r => ({ ...r, isNew: isNew(r.job.id) })), { date, fetched: jobs.length, companies: list.length, errors, trackedFile: tracked?.file ?? "", localLabel: cfg.locations.label || "Local", fitWhat: fitWhat() }));
   if (flag("dump") || cfg.dump) await dumpAll(jobs, date);
   for (const r of kept) firstSeen[r.job.id] ??= date;
   await writeFile(cacheFile, JSON.stringify(firstSeen));
@@ -120,9 +139,9 @@ async function scan() {
   // Keep dated reports for keepDays days (report.html is always overwritten).
   const keep = cfg.keepDays ?? 7;
   const cutoff = new Date(Date.now() - keep * 86400000).toLocaleDateString("en-CA");
-  for (const f of await readdir(resolve(ROOT, "out"))) {
+  for (const f of await readdir(resolve(ROOT, OUT))) {
     const m = f.match(/^(\d{4}-\d{2}-\d{2})\.(md|json)$/);
-    if (m && (keep <= 0 ? m[1] !== date || keep < 0 : m[1] < cutoff)) await unlink(resolve(ROOT, "out", f));
+    if (m && (keep <= 0 ? m[1] !== date || keep < 0 : m[1] < cutoff)) await unlink(resolve(ROOT, OUT, f));
   }
 
   const shown = Math.min(top, kept.length), inRun = kept.filter(r => r.tracked).length;
@@ -137,7 +156,7 @@ async function scan() {
 // Write every fetched posting (not just the ones that pass the filters) as one JSON object per line.
 // Used by echolocate for semantic search and trends. Kept for dumpKeepDays days (default 30).
 async function dumpAll(jobs: Job[], date: string) {
-  const dir = resolve(ROOT, "out/all");
+  const dir = resolve(ROOT, OUT, "all");
   await mkdir(dir, { recursive: true });
   const seenIds = new Set<string>();
   const lines: string[] = [];
@@ -171,8 +190,8 @@ async function match() {
   const r = score(job, resume, cfg, { keepAll: true });
   explain(r);
   console.log(`\n${C.dim}${L(
-    "总分 = 60% 简历分 + 40% 条件分。简历分：必须项技能覆盖 75 + 加分项覆盖 25，要求里有你没写过的语言每个 -10。条件分：级别 50 + 地点 30 + AI 相关 20，毕业时间不符 -40。\n「简历里没有的词」是职位要求里出现、你简历里一次都没出现的词，改简历时可以参考。只是关键词规则，最终请自己读 JD。",
-    "Total = 60% resume + 40% fit. Resume: required-skill coverage 75 + nice-to-have 25, -10 per required language you lack. Fit: level 50 + location 30 + AI focus 20, -40 if the graduation window excludes you.\n\"Not on your resume\" lists terms from the requirements that never appear in your resume. Keyword rules only; read the posting yourself.")}${C.r}`);
+    `总分 = 60% 简历分 + 40% 条件分。简历分：必须项技能覆盖 75 + 加分项覆盖 25${profile.gapPenalty?.length ? "，要求里有你没写过的语言每个 -10" : ""}。条件分：级别 50 + 地点 30${profile.bonus ? ` + ${bonusLabel()} 20` : ""}${cfg.graduation ? "，毕业时间不符 -40" : ""}。\n「简历里没有的词」是职位要求里出现、你简历里一次都没出现的词，改简历时可以参考。只是关键词规则，最终请自己读 JD。`,
+    `Total = 60% resume + 40% fit. Resume: required-skill coverage 75 + nice-to-have 25${profile.gapPenalty?.length ? ", -10 per required language you lack" : ""}. Fit: level 50 + location 30${profile.bonus ? ` + ${bonusLabel()} 20` : ""}${cfg.graduation ? ", -40 if the graduation window excludes you" : ""}.\n"Not on your resume" lists terms from the requirements that never appear in your resume. Keyword rules only; read the posting yourself.`)}${C.r}`);
 }
 
 async function showSkills() {
@@ -181,7 +200,24 @@ async function showSkills() {
   console.log("\n" + L("如果漏了，去 src/skills.ts 加别名，或者在简历里写明。", "Missing one? Add an alias in src/skills.ts or spell it out in your resume."));
 }
 
+function showProfiles() {
+  console.log(L("可选的 profile（在 config.local.json 里设 \"profile\"）：", "Career profiles (set \"profile\" in config.local.json):"));
+  for (const p of listProfiles()) console.log(`  ${p.name === profileName ? "*" : " "} ${p.name.padEnd(10)} ${p.description}`);
+  console.log(L(`\n加一个新的：复制 ${PROFILES}/software 改名，再改里面的 profile.json 和 companies.json。`, `\nAdd one: copy ${PROFILES}/software to a new folder and edit its profile.json and companies.json.`));
+}
+
+// Open the HTML report with the system's default browser.
+async function openReport() {
+  const page = resolve(ROOT, OUT, "report.html");
+  if (!existsSync(page)) { console.error(L("还没有报告，先运行 npm run scan。", "No report yet. Run npm run scan first.")); process.exit(1); }
+  const { spawn } = await import("node:child_process");
+  const [c, a] = process.platform === "win32" ? ["cmd", ["/c", "start", "", page]] : process.platform === "darwin" ? ["open", [page]] : ["xdg-open", [page]];
+  spawn(c, a as string[], { stdio: "ignore", detached: true }).unref();
+}
+
 if (cmd === "scan") await scan();
+else if (cmd === "profiles") showProfiles();
+else if (cmd === "open") await openReport();
 else if (cmd === "match") await match();
 else if (cmd === "skills") await showSkills();
 else console.log(L(`用法：
@@ -194,6 +230,9 @@ else console.log(L(`用法：
   npm run scan -- --dump            另外把抓到的所有职位写到 out/all/日期.jsonl
   npm run match -- <链接或txt>      给单个职位打分
   npm run skills                    看简历里认出了哪些技能
+  npm run profiles                  看有哪些职业 profile
+  npm run setup                     回答几个问题，生成 config.local.json
+  任何命令加 --profile <名字> 临时换一个 profile
   任何命令加 --lang en 或 --lang zh 切换输出语言`, `Usage:
   npm run scan                      fetch every board, rank, write reports to out/
   npm run scan -- --top 50          show more results in the terminal
@@ -204,4 +243,7 @@ else console.log(L(`用法：
   npm run scan -- --dump            also write every fetched posting to out/all/<date>.jsonl
   npm run match -- <URL or .txt>    score one posting
   npm run skills                    show skills found in your resume
+  npm run profiles                  list career profiles
+  npm run setup                     answer a few questions to write config.local.json
+  Add --profile <name> to use another profile for one run.
   Add --lang en or --lang zh to any command to switch the output language.`));

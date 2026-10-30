@@ -2,16 +2,20 @@
 
 [English](README.md) · 中文
 
-从公开的招聘板（Greenhouse、Ashby、Lever 的公开 API）抓入门级软件岗位，再用关键词规则跟你的简历比对打分。只在本地运行，不登录任何网站，不投递，不填表。
+从雇主公开的招聘板（Greenhouse、Ashby、Lever、Workday、SmartRecruiters、BambooHR 的公开 API）抓职位，再用关键词规则跟你的简历比对打分。只在本地运行，不登录任何网站，不投递，不填表，简历和结果都不离开你的电脑。
+
+**职业 profile**：选你要找的工作类型。目前有 `software`（入门级软件工程）和 `it`（IT 支持和系统管理）。一个 profile 就是两个 JSON 文件，加新职业不用改代码，见 [profiles/](profiles/README.md)。
 
 ## 用法
 
-需要 Node.js 23.6 或更新版本（直接运行 TypeScript）。
+需要 [Node.js](https://nodejs.org) 23.6 或更新版本（直接运行 TypeScript）和 [Git](https://git-scm.com)。macOS、Windows、Linux 都能用。
 
 第一次使用：
 ```bash
+git clone https://github.com/sophiazhangio/job-radar
+cd job-radar
 npm install
-cp config.example.json config.local.json   # 然后改里面的简历路径、毕业时间、城市
+npm run setup     # 回答几个问题：职业 profile、简历文件、城市等，生成 config.local.json
 ```
 
 ```bash
@@ -22,7 +26,8 @@ npm run scan -- --loose           # 也显示没写级别/年限的职位
 npm run scan -- --dump            # 另外把抓到的所有职位写到 out/all/日期.jsonl
 npm run match -- <职位链接>       # 给单个职位打分（Greenhouse/Ashby/Lever 链接最准，其他网页也能试）
 npm run match -- job.txt          # 把 JD 复制进 txt 文件也行
-npm run skills                    # 看简历里认出了哪些技能
+npm run skills                    # 看简历里认出了哪些技能（建议第一次先跑这个）
+npm run profiles                  # 看有哪些职业 profile
 npm run open                      # 打开网页报告
 ```
 
@@ -45,9 +50,10 @@ npm run open                      # 打开网页报告
 
 ## 改设置
 
-- `config.local.json`：简历路径、毕业时间、最多几年经验、可接受的城市（`locations.label` 是报告里这组城市的名字，比如 "LA/OC"）、标题和正文的排除词、最低分、输出语言（`lang`：`zh` 中文，`en` 英文；也可以在命令后加 `--lang zh`）。
-- `companies.json`：要抓的公司。默认名单偏 AI、开发者工具、金融科技和 LA 本地公司，可以按自己的方向换。格式 `["显示名", "greenhouse|ashby|lever", "板子名"]`，板子名就是招聘页网址里那一段，比如 `jobs.ashbyhq.com/quora` 的 `quora`。
-- `src/skills.ts`：技能词典。简历或 JD 里的写法没认出来，就在这里加。
+- `config.local.json`（`npm run setup` 生成）：profile、简历路径、毕业时间（可不填）、最多几年经验、可接受的城市（`locations.label` 是报告里这组城市的名字，比如 "LA/OC"）、最低分、输出语言（`lang`：`zh` 中文，`en` 英文；也可以在命令后加 `--lang zh`）。profile 里 `defaults` 的任何规则（标题排除词等）复制到这里就能覆盖。
+- `profiles/<名字>/profile.json`：这个职业的技能词典、标题规则和打分细节。简历或 JD 里的写法没认出来，就在这里加。
+- `profiles/<名字>/companies.json`：要抓的公司。`software` 名单偏 AI、开发者工具、金融科技和 LA 公司；`it` 名单偏橙县和 LA 的雇主。怎么找一家公司的招聘板见 [profiles/README.md](profiles/README.md)。
+- 想临时试另一个 profile：命令后加 `--profile it`，结果写到 `out/it/`，不会覆盖你自己的报告。
 
 ## 打分怎么算
 
@@ -61,16 +67,16 @@ npm run open                      # 打开网页报告
 - 显示为「简历 89（必须项对上 5/6）」。职位只写了一两个技能时，分数参考价值低，会有提示。
 
 **条件分**：职位合不合你的求职条件。
-- 级别 50：写了 new grad / junior / early career / 0–2 年得高分，要求 2 年给一部分。
-- 地点 30：远程（美国）或 LA/OC。
-- AI 相关 20：提到 Claude Code / Codex / Cursor 得满分，提到 LLM、agent 得一部分。
-- 毕业时间窗口看起来不包含你，-40。
+- 级别 50：写了初级岗字眼，或要求年限在你的 `maxYears` 以内得高分，刚好到上限给一部分。
+- 地点 30：远程（美国）或你的城市。
+- profile 加分 20：`software` 看 Claude Code / Codex / Cursor（满分）和 LLM、agent（一部分）；`it` 看 Microsoft 365、Windows Server、Azure 和 MSP 经验。
+- 填了毕业时间时，毕业时间窗口看起来不包含你，-40。
 
 **总分** = 60% 简历分 + 40% 条件分，用来排序。70 以上 Strong，50 以上 Good。
 
 **简历里没有的词**：职位要求里出现、但你简历里一次都没出现的技术词和短语（比如 "design systems"、"cloudflare workers"）。很多公司先用招聘系统按关键词筛简历，可以把这些词交给改简历时参考。
 
-直接过滤掉的：Senior/Staff/Lead 等标题、II 级以上、实习、嵌入式/硬件/C++、提到安全审查或国防、地点不符、没写级别也没写年限（用 `--loose` 可以看到）。
+直接过滤掉的（规则来自 profile）：不属于这个职业的标题（`software`：Senior/Staff/Lead、II 级以上、实习、嵌入式/硬件；`it`：Senior/Lead/Manager、III 级以上、非 IT 的技术员）、提到安全审查或国防、地点不符、年限超过 `maxYears`，以及 `software` 下没写级别也没写年限的（用 `--loose` 可以看到）。
 
 这是关键词规则，不懂语义。分数只用来排序，投之前请自己读 JD。
 

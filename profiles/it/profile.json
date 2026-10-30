@@ -1,0 +1,247 @@
+{
+  "name": "it",
+  "description": "IT support and systems administration: help desk, desktop support, IT technician/specialist, systems and network administrator, MSP roles.",
+  "skills": [
+    {
+      "name": "Windows Server",
+      "pattern": "windows server|server 20(12|16|19|22|25)|\\bwsus\\b|\\biis\\b",
+      "core": true
+    },
+    {
+      "name": "Active Directory",
+      "pattern": "active directory|\\badds?\\b(?! (campaign|copy|on))|domain controllers?|\\bldap\\b",
+      "core": true
+    },
+    {
+      "name": "Microsoft 365",
+      "pattern": "microsoft 365|office ?365|\\bo365\\b|\\bm365\\b|microsoft (office|suite)|\\bms office\\b|\\boffice (suite|applications|apps)\\b|\\bteams\\b|sharepoint|onedrive",
+      "core": true
+    },
+    {
+      "name": "Exchange",
+      "pattern": "exchange (online|server|admin)|microsoft exchange|\\bexchange\\b(?=\\s*(,|/|and)\\s*(office|o365|m365|microsoft|teams|sharepoint|active|intune|azure|outlook))|(office ?365|o365|m365|microsoft 365|active directory|teams|sharepoint|outlook)\\s*(,|/|and)\\s*exchange|including exchange",
+      "core": false
+    },
+    {
+      "name": "Windows desktop",
+      "pattern": "windows (10|11|7|desktop|os|client|workstations?|pcs?)|workstations?|\\bwindows\\b(?! server)",
+      "core": true
+    },
+    {
+      "name": "Networking (TCP/IP, DNS, DHCP)",
+      "pattern": "tcp/ip|\\bdns\\b|\\bdhcp\\b|\\bvlans?\\b|\\blan\\b|\\bwan\\b|network(ing)? (infrastructure|troubleshooting|administration|support|equipment)|\\bnetworking\\b|network and hardware",
+      "core": true
+    },
+    {
+      "name": "Help desk / end-user support",
+      "pattern": "help ?desk|service ?desk|end.users?|user support|desktop support|tier [12i]\\b|level [12] support|\\btickets?\\b|ticketing",
+      "core": true
+    },
+    {
+      "name": "Hardware troubleshooting",
+      "pattern": "hardware (troubleshooting|support|repair|and software)|troubleshoot\\w*[^.]{0,40}hardware|network and hardware|laptops?|desktops? (and|/) laptops?|imaging|peripherals",
+      "core": true
+    },
+    {
+      "name": "Ticketing / PSA tools",
+      "pattern": "connectwise|autotask|servicenow|jira service|zendesk|freshservice|halo ?psa|\\bpsa\\b|syncro",
+      "core": false
+    },
+    {
+      "name": "RMM tools (Datto, NinjaOne, Kaseya)",
+      "pattern": "\\brmm\\b|datto rmm|ninja ?(one|rmm)|kaseya|n-able|n-central|connectwise automate|atera|remote monitoring",
+      "core": false
+    },
+    {
+      "name": "EDR / endpoint security",
+      "pattern": "\\bedr\\b|\\bxdr\\b|\\bmdr\\b|sentinelone|crowdstrike|huntress|defender|antivirus|anti-virus|endpoint (protection|security|detection)|sophos|bitdefender",
+      "core": false
+    },
+    {
+      "name": "Backup / disaster recovery",
+      "pattern": "backups?\\b|disaster recovery|\\bbcdr\\b|veeam|altaro|acronis|datto (siris|backup|bcdr)|azure backup|business continuity",
+      "core": false
+    },
+    {
+      "name": "Virtualization (Hyper-V, VMware)",
+      "pattern": "hyper-?v|vmware|vsphere|esxi|virtualization|virtual (servers|machines)|\\bvms?\\b",
+      "core": false
+    },
+    {"name": "Azure / Entra ID", "pattern": "\\bazure\\b|entra|\\baad\\b", "core": false},
+    {
+      "name": "Intune / device management",
+      "pattern": "intune|\\bmdm\\b|endpoint manager|\\bsccm\\b|\\bmecm\\b|autopilot|jamf|kandji",
+      "core": false
+    },
+    {"name": "Group Policy", "pattern": "group policy|\\bgpos?\\b", "core": false},
+    {
+      "name": "Firewalls (SonicWall, Fortinet, Meraki)",
+      "pattern": "firewalls?|sonicwall|fortinet|fortigate|palo alto|watchguard|pfsense|meraki mx",
+      "core": false
+    },
+    {
+      "name": "Switches / routing (Cisco, Meraki, UniFi)",
+      "pattern": "\\bswitch(es)?\\b|switching|\\brouters?\\b|\\bcisco\\b|meraki|aruba|ubiquiti|unifi|juniper",
+      "core": false
+    },
+    {"name": "VPN", "pattern": "\\bvpns?\\b", "core": false},
+    {"name": "Wi-Fi / wireless", "pattern": "wi-?fi|wireless|access points?", "core": false},
+    {
+      "name": "Storage / NAS",
+      "pattern": "\\bnas\\b|\\bsan\\b(?! (francisco|diego|jose|mateo|bernardino|clemente))|synology|qnap|storage (systems|arrays|solutions)|azure storage",
+      "core": false
+    },
+    {
+      "name": "UPS / power",
+      "pattern": "\\bups\\b(?! store)|battery backup|power (protection|distribution)",
+      "core": false
+    },
+    {"name": "Printers", "pattern": "printers?|copiers?|print servers?", "core": false},
+    {
+      "name": "VoIP / phone systems",
+      "pattern": "\\bvoip\\b|phone systems?|\\bpbx\\b|ring ?central|\\b8x8\\b|teams (voice|phone)|zoom phone",
+      "core": false
+    },
+    {
+      "name": "Audio-visual / conference rooms",
+      "pattern": "audio.?visual|\\ba/?v\\b|conference rooms?|zoom rooms|teams rooms",
+      "core": false
+    },
+    {
+      "name": "PowerShell / scripting",
+      "pattern": "powershell|scripting|\\bbash\\b|\\bpython\\b|automation scripts?",
+      "core": false
+    },
+    {"name": "Linux", "pattern": "\\blinux\\b|ubuntu|red ?hat|\\brhel\\b|centos|debian", "core": false},
+    {
+      "name": "macOS / Apple devices",
+      "pattern": "mac ?os|\\bmacs?\\b|apple devices|\\bosx\\b|\\bios devices",
+      "core": false
+    },
+    {"name": "Google Workspace", "pattern": "google workspace|g ?suite", "core": false},
+    {"name": "Okta / SSO", "pattern": "\\bokta\\b|\\bsso\\b|single sign-on|\\bsaml\\b|jumpcloud", "core": false},
+    {"name": "AWS", "pattern": "\\baws\\b|amazon web services", "core": false},
+    {"name": "SQL / databases", "pattern": "\\bsql\\b|database administration", "core": false},
+    {"name": "CompTIA A+", "pattern": "comptia a\\+|\\ba\\+(?=[\\s,/)]|$)", "core": false},
+    {"name": "Network+ / CCNA", "pattern": "network\\+|\\bccna\\b|\\bccnp\\b", "core": false},
+    {"name": "Security+", "pattern": "security\\+", "core": false},
+    {
+      "name": "Microsoft certifications",
+      "pattern": "\\bmcsa\\b|\\bmcse\\b|\\bmd-?102\\b|\\baz-?\\d{3}\\b|\\bms-?\\d{3}\\b|microsoft certified",
+      "core": false
+    },
+    {"name": "ITIL", "pattern": "\\bitil\\b", "core": false},
+    {
+      "name": "MSP / managed services",
+      "pattern": "\\bmsp\\b|managed service provider|managed services|small business clients|multiple clients",
+      "core": false
+    },
+    {"name": "AutoCAD / engineering software", "pattern": "autocad|revit|bluebeam|solidworks", "core": false}
+  ],
+  "alternatives": [],
+  "gapPenalty": [],
+  "bonus": {
+    "label": {"en": "Microsoft/MSP focus", "zh": "微软/MSP 方向"},
+    "partial": ["Microsoft 365", "Windows Server", "Azure / Entra ID", "MSP / managed services"]
+  },
+  "entryTitle": "tier (1|i|one)\\b|level (1|i)\\b|technician|help ?desk|service desk|desktop support",
+  "searchTerms": [
+    "IT support",
+    "help desk",
+    "desktop support",
+    "IT technician",
+    "IT specialist",
+    "systems administrator",
+    "network administrator",
+    "service desk"
+  ],
+  "defaults": {
+    "maxYears": 5,
+    "requireLevel": false,
+    "maxTitleLevel": 2,
+    "includeTitle": [],
+    "includeTitleRe": [
+      "\\bit\\b",
+      "information technology",
+      "help ?desk",
+      "service ?desk",
+      "desktop (support|technician|engineer|specialist)",
+      "systems? admin",
+      "sys ?admin",
+      "network (admin|technician|engineer|specialist|analyst)",
+      "technical support technician",
+      "computer (support|technician)",
+      "endpoint (engineer|administrator|specialist|technician)",
+      "\\bmsp\\b",
+      "workplace (technology|engineer|tech)",
+      "infrastructure (specialist|administrator|technician|analyst)",
+      "systems (specialist|technician)",
+      "microsoft 365|\\bm365\\b",
+      "field technician",
+      "noc (technician|analyst|engineer)"
+    ],
+    "excludeTitle": [
+      "senior",
+      "sr.",
+      "sr ",
+      "staff",
+      "principal",
+      "lead",
+      "manager",
+      "director",
+      "head of",
+      "vp",
+      "architect",
+      "intern",
+      "co-op",
+      "sales",
+      "account executive",
+      "account manager",
+      "recruit",
+      "marketing",
+      "counsel",
+      "software",
+      "developer",
+      "data scientist",
+      "machine learning",
+      "product manager",
+      "pharmacy",
+      "surgical",
+      "medical",
+      "nurse",
+      "lab ",
+      "laboratory",
+      "maintenance technician",
+      "hvac",
+      "automotive",
+      "mechanic",
+      "electrician",
+      "sterile",
+      "radiology",
+      "imaging technician",
+      "cardio",
+      "ultrasound",
+      "biomedical",
+      "veterinary",
+      "dental",
+      "field service technician",
+      "manufacturing",
+      "production",
+      "assembly",
+      "quality",
+      "warehouse",
+      "customer",
+      "product support",
+      "business systems",
+      "gtm",
+      "revenue",
+      "billing",
+      "payroll",
+      "agent support",
+      "success",
+      "security engineer"
+    ],
+    "excludeTitleRe": ["\\bauditor?\\b", "\\bit audit", "\\bit (internal )?controls?\\b"],
+    "excludeText": ["security clearance", "ts/sci", "secret clearance", "itar", "department of defense", "dod ", "defense"]
+  }
+}

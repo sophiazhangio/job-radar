@@ -5,7 +5,7 @@
 //   fit    — whether the job fits what you are looking for (level, location, AI focus, graduation window)
 // total = 60% resume + 40% fit, used for sorting.
 
-import { CORE, SKILLS, findSkills } from "./skills.ts";
+import { CORE, SKILLS, PROFILE, findSkills } from "./skills.ts";
 import type { Job } from "./sources.ts";
 import { L } from "./i18n.ts";
 import { existsSync, readFileSync } from "node:fs";
@@ -22,14 +22,39 @@ function common(w: string): boolean {
 }
 
 export type Config = {
-  graduation: string;
+  profile?: string;
+  graduation?: string; // "YYYY-MM"; leave out if graduation windows don't matter to you
   maxYears: number;
   locations: { remoteUS: boolean; cities: string[]; label?: string };
   excludeTitle: string[];
   excludeText: string[];
   includeTitle: string[];
+  includeTitleRe?: string[]; // regular expressions, for words that need word boundaries (e.g. "\\bit\\b")
+  excludeTitleRe?: string[];
+  requireLevel?: boolean; // true: drop postings that state no level or years (default true)
+  maxTitleLevel?: number; // highest title level kept: 1 drops "II" and up, 2 drops "III" and up (default 1)
   minScore: number;
 };
+
+const anyRe = (list: string[] | undefined, s: string) => (list ?? []).some(p => new RegExp(p, "i").test(s));
+
+// Whether a title passes the include/exclude title rules (used before fetching details from searched boards too).
+export function titleAllowed(title: string, cfg: Config): string | undefined {
+  const t = title.toLowerCase();
+  const hasInclude = (cfg.includeTitle?.length ?? 0) + (cfg.includeTitleRe?.length ?? 0) > 0;
+  if (hasInclude && !(cfg.includeTitle ?? []).some(w => t.includes(w)) && !anyRe(cfg.includeTitleRe, t)) return "not an engineering title";
+  const bad = (cfg.excludeTitle ?? []).find(w => t.includes(w)) ?? (cfg.excludeTitleRe ?? []).find(p => new RegExp(p, "i").test(t));
+  if (bad) return `title has "${bad.trim()}"`;
+  return undefined;
+}
+
+// Titles above the allowed level ("Engineer II", "L4", "Tier 3"...).
+const ROMAN = ["i", "ii", "iii", "iv", "v", "vi"];
+function aboveLevel(n: number): RegExp {
+  if (n <= 1) return NOT_ENTRY_TITLE;
+  const r = ROMAN.slice(n).join("|"), d = `[${n + 1}-9]`;
+  return new RegExp(`\\b(${r}|${d})\\b(?!\\d)|\\bl${d}\\b|\\be${d}\\b`, "i");
+}
 
 export type Resume = { text: string; skills: Set<string> };
 
@@ -152,10 +177,9 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   const flags: string[] = [];
   let dropped: string | undefined;
 
-  if (!cfg.includeTitle.some(w => title.includes(w))) dropped = "not an engineering title";
-  const badTitle = cfg.excludeTitle.find(w => title.includes(w));
-  if (!dropped && badTitle) dropped = `title has "${badTitle.trim()}"`;
-  if (!dropped && NOT_ENTRY_TITLE.test(job.title) && !/2026|2027|2025/.test(job.title)) dropped = "title is level II or above";
+  dropped = titleAllowed(job.title, cfg);
+  const maxLevel = cfg.maxTitleLevel ?? 1;
+  if (!dropped && aboveLevel(maxLevel).test(job.title) && !/2026|2027|2025/.test(job.title)) dropped = maxLevel <= 1 ? "title is level II or above" : `title is above level ${maxLevel}`;
   const badText = cfg.excludeText.find(w => low.includes(w));
   if (!dropped && badText) dropped = `mentions "${badText.trim()}"`;
 
@@ -172,7 +196,7 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   // A skill you lack that only ever appears next to one you have ("Python, Java, or Go") is an alternative, not a gap.
   const sentences = low.replace(/\be\.g\.|\bi\.e\.|\betc\./g, m => m.replace(/\./g, "")).split(/[\n;]|\.(?=\s|$)/);
   const haveCore = SKILLS.filter(k => k.core && has.has(k.name));
-  const LANGS = new Set(["Go", "Rust", "Kotlin", "Swift/iOS", "C#/.NET", "C/C++", "Ruby/Rails", "PHP", "Scala", "Java", "Python", "TypeScript", "JavaScript"]);
+  const LANGS = new Set(PROFILE.alternatives ?? []);
   for (const name of [...jd]) {
     if (has.has(name) || !LANGS.has(name)) continue;
     const k = SKILLS.find(x => x.name === name)!;
@@ -203,21 +227,22 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
 
   const missingRequired = required.filter(s => !has.has(s));
   const missingNice = nice.filter(s => !has.has(s));
-  const langGap = ["Go", "Rust", "Kotlin", "Swift/iOS", "Android", "C#/.NET", "Ruby/Rails", "Scala", "C/C++"].filter(s => missingRequired.includes(s));
+  const langGap = (PROFILE.gapPenalty ?? []).filter(s => missingRequired.includes(s));
   if (langGap.length) flags.push(L(`要求里有你没写过的语言：${langGap.join(", ")}`, `Requires languages not on your resume: ${langGap.join(", ")}`));
   const resumeScore = clamp(75 * reqCov + 25 * niceCov - Math.min(30, langGap.length * 10));
 
   // ---- Fit score ----
-  const entryTitle = ENTRY_TITLE.test(job.title);
+  const entryTitle = ENTRY_TITLE.test(job.title) || (!!PROFILE.entryTitle && new RegExp(PROFILE.entryTitle, "i").test(job.title));
   const entryText = ENTRY_TEXT.test(text);
-  let level = years === null ? (entryTitle || entryText ? 50 : 0) : years <= 1 ? 45 : years <= 2 ? 30 : 0;
+  const requireLevel = cfg.requireLevel ?? true;
+  let level = years === null ? (entryTitle || entryText ? 50 : requireLevel ? 0 : 25) : years <= cfg.maxYears - 1 ? 45 : years <= cfg.maxYears ? 30 : 0;
   if ((entryTitle || entryText) && years !== null) level = Math.min(50, level + 10);
-  if (years === null && !entryTitle && !entryText) {
+  if (years === null && !entryTitle && !entryText && requireLevel) {
     flags.push(L("没写年限，也没写是初级岗", "No years or entry-level wording"));
     if (!dropped && !opts.loose) dropped = "level unclear (use --loose to include)";
   }
 
-  const gradYear = parseInt(cfg.graduation.slice(0, 4), 10);
+  const gradYear = cfg.graduation ? parseInt(cfg.graduation.slice(0, 4), 10) : Infinity;
   const gradYears = [...low.matchAll(/graduat[^.\n]{0,80}/g)].flatMap(m => [...m[0].matchAll(/20(2\d)/g)].map(y => 2000 + parseInt(y[1], 10)));
   if (/20(2[6-9])/.test(job.title) && !gradYears.length) gradYears.push(parseInt(job.title.match(/20(2[6-9])/)![0], 10));
   let gradPenalty = 0;
@@ -227,7 +252,8 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   }
 
   const loc = where ? 30 : 0;
-  const ai = jd.has("Claude Code / Codex / Cursor") ? 20 : Math.min(20, ["LLMs", "AI agents", "RAG / embeddings"].filter(s => jd.has(s)).length * 10);
+  const b = PROFILE.bonus;
+  const ai = !b ? 0 : (b.full ?? []).some(s => jd.has(s)) ? 20 : Math.min(20, (b.partial ?? []).filter(s => jd.has(s)).length * 10);
   const fitScore = clamp(level + loc + ai - gradPenalty);
 
   if (/on-?call/i.test(text)) flags.push(L("有 on-call", "Includes on-call"));

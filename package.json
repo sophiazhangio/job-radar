@@ -2,16 +2,18 @@
   "name": "job-radar",
   "version": "0.1.0",
   "private": true,
-  "description": "Pull entry-level software postings from public job boards and score them against a resume.",
+  "description": "Pull job postings from public job boards and score them against your resume, for any career profile.",
   "type": "module",
   "engines": {
     "node": ">=23.6"
   },
   "scripts": {
+    "setup": "node src/setup.ts",
     "scan": "node src/cli.ts scan",
     "match": "node src/cli.ts match",
     "skills": "node src/cli.ts skills",
-    "open": "open out/report.html"
+    "profiles": "node src/cli.ts profiles",
+    "open": "node src/cli.ts open"
   },
   "dependencies": {
     "unpdf": "1.1.0"

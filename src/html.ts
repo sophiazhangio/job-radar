@@ -8,7 +8,8 @@ export type Row = Result & { isNew: boolean };
 
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 
-export function toHtml(rows: Row[], meta: { date: string; fetched: number; companies: number; errors: string[]; trackedFile: string; localLabel: string }): string {
+export function toHtml(rows: Row[], meta: { date: string; fetched: number; companies: number; errors: string[]; trackedFile: string; localLabel: string; fitWhat?: string }): string {
+  const fit = meta.fitWhat ?? L("级别、地点、AI 相关、毕业时间", "level, location, AI focus, graduation window");
   // Strings the page script needs at runtime, in the chosen language.
   const t = {
     status: statusLabels(),
@@ -132,7 +133,7 @@ a { color: var(--accent); }
     <input type="search" id="q" placeholder="${L("搜公司、职位、技能", "Search company, role, skill")}" aria-label="${L("搜索", "Search")}">
   </div>
   <div class="list" id="list"></div>
-  <p class="foot">${L("总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项 75 + 加分项 25）；条件分看级别、地点、AI 相关、毕业时间。规则打分，只用来排序，投之前请自己读职位描述。点一行展开详情。", "Total = 60% resume score + 40% fit score. Resume score: how much of the posting's skills your resume covers (required 75 + nice-to-have 25). Fit score: level, location, AI focus, graduation window. Keyword rules for ranking only; read the posting before applying. Click a row for details.")}</p>
+  <p class="foot">${L(`总分 = 60% 简历分 + 40% 条件分。简历分看你的简历覆盖了多少职位要求的技能（必须项 75 + 加分项 25）；条件分看${fit}。规则打分，只用来排序，投之前请自己读职位描述。点一行展开详情。`, `Total = 60% resume score + 40% fit score. Resume score: how much of the posting's skills your resume covers (required 75 + nice-to-have 25). Fit score: ${fit}. Keyword rules for ranking only; read the posting before applying. Click a row for details.`)}</p>
 </div>
 <script id="data" type="application/json">${json}</script>
 <script>
