@@ -1,0 +1,81 @@
+{
+  "_note": "Example bullet bank for `npm run tailor` (a made-up person). Copy to resume.local.json (gitignored) and replace everything with your own experience. tailor only picks, orders and chooses between wordings you wrote here; it never writes new text.",
+  "name": "Alex Rivera",
+  "title": ["Full-Stack Software Engineer", "Frontend Engineer", "Software Engineer"],
+  "contact": [
+    [{ "text": "Los Angeles, CA" }, { "text": "alex@example.com", "url": "mailto:alex@example.com" }],
+    [{ "text": "github.com/alex-example", "url": "https://github.com/alex-example" }, { "text": "alex.example.dev", "url": "https://alex.example.dev" }]
+  ],
+  "summary": [
+    { "text": "TypeScript · React · Node.js · PostgreSQL. I build product features end to end and keep them tested.", "tags": ["full-stack"] },
+    { "text": "React · TypeScript · CSS. I build accessible, responsive interfaces with care for the details.", "tags": ["frontend", "accessibility"] }
+  ],
+  "sections": [
+    {
+      "heading": "Experience",
+      "entries": [
+        {
+          "title": "Software Engineer Intern",
+          "date": "Jun 2025 – Present",
+          "org": "Example Labs",
+          "place": "Remote",
+          "intro": "Booking app for small clinics (Next.js, TypeScript, PostgreSQL).",
+          "min": 2,
+          "max": 4,
+          "bullets": [
+            { "text": "**Rebuilt the booking flow in React**, cutting drop-off between steps by 18%.", "tags": ["react", "typescript"] },
+            {
+              "text": "**Added Postgres indexes and a cached availability query**, taking the slowest API route from 1.2 s to 180 ms.",
+              "alt": ["**Sped up the availability API from 1.2 s to 180 ms** with Postgres indexes and caching."],
+              "tags": ["postgres", "sql", "node.js"]
+            },
+            { "text": "**Made the forms accessible:** labels, error messages read by screen readers, and full keyboard support.", "tags": ["accessibility", "html", "css"] },
+            { "text": "**Set up CI with GitHub Actions** running unit and end-to-end tests on every pull request.", "tags": ["ci/cd", "testing"] },
+            { "text": "Used Claude Code and Cursor with written specs; reviewed and tested every generated change before merge.", "tags": ["ai agents"] }
+          ]
+        },
+        {
+          "title": "Teaching Assistant, Data Structures",
+          "date": "Sep 2023 – Jun 2025",
+          "org": "Example State University",
+          "bullets": [{ "text": "Ran weekly labs for 40 students on trees, graphs and hashing in Java.", "pin": true }]
+        }
+      ]
+    },
+    {
+      "heading": "Projects",
+      "pick": 2,
+      "entries": [
+        {
+          "title": "plantpal — watering reminders",
+          "link": { "text": "live demo", "url": "https://example.com" },
+          "date": "React, Firebase",
+          "bullets": [{ "text": "Offline-first PWA with push reminders; 200 weekly users.", "tags": ["react", "firebase"] }]
+        },
+        {
+          "title": "trailcast — hiking weather forecaster",
+          "date": "Python, FastAPI",
+          "bullets": [{ "text": "Gradient-boosting forecast served by FastAPI; beat the naive baseline by 22% MAE.", "tags": ["python", "fastapi"] }]
+        },
+        {
+          "title": "tinydb — key-value store",
+          "date": "Go",
+          "bullets": [{ "text": "Log-structured storage with compaction and crash recovery tests.", "tags": ["go", "testing"] }]
+        }
+      ]
+    },
+    {
+      "heading": "Education",
+      "entries": [{ "title": "Example State University — B.S., Computer Science", "date": "Jun 2025" }]
+    },
+    {
+      "heading": "Skills",
+      "skills": [
+        { "label": "Languages", "items": ["TypeScript", "JavaScript", "Python", "Java", "SQL", "Go"] },
+        { "label": "Frontend", "items": ["React", "Next.js", "HTML", "CSS", "accessibility"] },
+        { "label": "Backend", "items": ["Node.js", "PostgreSQL", "FastAPI", "Firebase", "REST APIs"] },
+        { "label": "Tools", "items": ["Git", "GitHub Actions", "Playwright", "Claude Code", "Cursor"] }
+      ]
+    }
+  ]
+}

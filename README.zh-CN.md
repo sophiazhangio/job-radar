@@ -26,6 +26,7 @@ npm run scan -- --loose           # 也显示没写级别/年限的职位
 npm run scan -- --dump            # 另外把抓到的所有职位写到 out/all/日期.jsonl
 npm run match -- <职位链接>       # 给单个职位打分（Greenhouse/Ashby/Lever 链接最准，其他网页也能试）
 npm run match -- job.txt          # 把 JD 复制进 txt 文件也行
+npm run tailor -- <职位链接>      # 从你的素材库为这个职位生成一页简历（见下面）
 npm run skills                    # 看简历里认出了哪些技能（建议第一次先跑这个）
 npm run profiles                  # 看有哪些职业 profile
 npm run dump -- --profile it      # 只抓不打分，写到 out/all/<profile>/日期.jsonl（不需要简历）
@@ -50,6 +51,21 @@ npm run open                      # 打开网页报告
 - 网页报告里可以勾「隐藏已追踪」，只看还没处理的。
 
 追踪表更新后想同步，就再导出一次。全程不用 AI，不用登录。文件格式见英文 README 的 "tracked.json format"。
+
+## 按职位生成简历
+
+`npm run tailor -- <职位链接 或 job.txt>` 为一个职位生成一页简历。
+
+1. 把 `resume.example.json` 复制成 `resume.local.json`（不进 git），写你自己的**素材库**：所有可能用上的经历要点，可以比一页多。每条可以有几种写法（`alt`）和额外的 `tags`（这条体现了、但字面上没写出来的技能）。一定要出现的标 `pin`，每段经历用 `min` / `max` 控制条数。某一节设 `pick: 2`，就只留最匹配的两项（比如项目）。
+2. tailor 读职位，用和 `match` 一样的规则找出必须项和加分项技能，给每条打分：必须项 3 分（核心技能 6 分），加分项 1 分（核心 2 分），职位里的关键词每个 1 分。每段经历留分最高的几条和最合适的写法，选最接近的 `title` 和 `summary`，技能栏里对上的技能排到前面。
+3. 生成 HTML，用 Chrome 打印成 PDF。超过一页就删掉分最低的一条，再打印。
+4. 像 `match` 一样给结果打分，显示改前（你现在的简历文件）和改后的简历分。
+
+结果在 `out/tailored/<公司>-<职位>/`：HTML、PDF 和 `notes.md`（分数、对上的技能、素材库里没有的必须项、删掉了什么、每条入选内容的分数）。
+
+选项：`--bank <文件>`（或在 `config.local.json` 里设 `"bank"`）、`--out <文件夹>`、`--no-pdf`、`.txt` 职位用 `--company <公司名>`。会自动找 Chrome、Chromium 或 Edge；找不到就在 `config.local.json` 里设 `"chrome"` 或设环境变量 `CHROME_PATH`。
+
+tailor 只从你写的内容里挑选、排序、选写法，不会加你没有的技能：缺的必须项会写在 `notes.md` 里，不会写进简历。投之前自己读一遍。
 
 ## 改设置
 

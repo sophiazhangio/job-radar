@@ -3,6 +3,7 @@
 //
 //   node src/cli.ts scan [--top 30] [--all] [--anywhere] [--company Quora] [--dump]
 //   node src/cli.ts match <job URL or .txt file>
+//   node src/cli.ts tailor <job URL or .txt file> [--bank bank.json] [--no-pdf]
 //   node src/cli.ts skills
 
 import { readFile, writeFile, mkdir, readdir, unlink } from "node:fs/promises";
@@ -202,21 +203,87 @@ async function dumpOnly() {
   }
 }
 
+// A posting from a URL, or from a saved .txt file (first line = title).
+async function getJob(target: string): Promise<Job> {
+  if (/^https?:\/\//.test(target)) return fetchOne(target);
+  const text = await readFile(target, "utf8");
+  const company = opt("company") ?? "(pasted)";
+  return { id: target, company, title: text.split("\n")[0].slice(0, 120), location: "", remote: /remote/i.test(text), url: target, posted: "", pay: "", text };
+}
+
 async function match() {
   const target = args[1];
   if (!target) { console.error(L("用法：npm run match -- <职位链接 或 .txt 文件>", "Usage: npm run match -- <posting URL or .txt file>")); process.exit(1); }
   const resume = await loadResume();
-  let job: Job;
-  if (/^https?:\/\//.test(target)) job = await fetchOne(target);
-  else {
-    const text = await readFile(target, "utf8");
-    job = { id: target, company: "(pasted)", title: text.split("\n")[0].slice(0, 120), location: "", remote: /remote/i.test(text), url: target, posted: "", pay: "", text };
-  }
+  const job = await getJob(target);
   const r = score(job, resume, cfg, { keepAll: true });
   explain(r);
   console.log(`\n${C.dim}${L(
     `总分 = 60% 简历分 + 40% 条件分。简历分：必须项技能覆盖 75 + 加分项覆盖 25${profile.gapPenalty?.length ? "，要求里有你没写过的语言每个 -10" : ""}。条件分：级别 50 + 地点 30${profile.bonus ? ` + ${bonusLabel()} 20` : ""}${cfg.graduation ? "，毕业时间不符 -40" : ""}。\n「简历里没有的词」是职位要求里出现、你简历里一次都没出现的词，改简历时可以参考。只是关键词规则，最终请自己读 JD。`,
     `Total = 60% resume + 40% fit. Resume: required-skill coverage 75 + nice-to-have 25${profile.gapPenalty?.length ? ", -10 per required language you lack" : ""}. Fit: level 50 + location 30${profile.bonus ? ` + ${bonusLabel()} 20` : ""}${cfg.graduation ? ", -40 if the graduation window excludes you" : ""}.\n"Not on your resume" lists terms from the requirements that never appear in your resume. Keyword rules only; read the posting yourself.`)}${C.r}`);
+}
+
+async function tailor() {
+  const target = args[1];
+  if (!target || target.startsWith("--")) { console.error(L("用法：npm run tailor -- <职位链接 或 .txt 文件> [--bank 素材库.json] [--no-pdf]", "Usage: npm run tailor -- <posting URL or .txt file> [--bank bank.json] [--no-pdf]")); process.exit(1); }
+  const T = await import("./tailor.ts");
+  const bankPath = resolve(ROOT, opt("bank") ?? (cfg as any).bank ?? "resume.local.json");
+  if (!existsSync(bankPath)) {
+    console.error(L(`找不到素材库：${bankPath}\n复制 resume.example.json 为 resume.local.json 并填上你自己的经历，或者在 config.local.json 里设 "bank"。`, `Bullet bank not found: ${bankPath}\nCopy resume.example.json to resume.local.json and fill in your own experience, or set "bank" in config.local.json.`));
+    process.exit(1);
+  }
+  const bank = await T.loadBank(bankPath);
+  const job = await getJob(target);
+  if (/^[a-z]/.test(job.company)) job.company = job.company[0].toUpperCase() + job.company.slice(1); // board slugs are lowercase
+  const before = existsSync(resumePath) ? await loadResume() : null;
+  const base = score(job, before ?? { text: "", skills: new Set() }, cfg, { keepAll: true });
+  const want = { required: base.required, nice: base.nice, keywords: base.keywords, title: job.title };
+  const chosen = T.choose(bank, want);
+
+  const dir = resolve(ROOT, opt("out") ?? `out/tailored/${T.slug(job.company)}-${T.slug(job.title)}`);
+  const stem = `${bank.name.replace(/\(.*?\)/g, "").trim().replace(/\W+/g, "_")}_Resume_${job.company.replace(/\W+/g, "_")}`;
+  const htmlFile = resolve(dir, `${stem}.html`), pdfFile = resolve(dir, `${stem}.pdf`);
+  const dropped: string[] = [];
+  let pages = 0;
+  const chrome = flag("no-pdf") ? null : T.findChrome((cfg as any).chrome);
+  await T.writeOut(dir, { [`${stem}.html`]: T.toResumeHtml(chosen) });
+  if (chrome) {
+    for (let i = 0; i < 30; i++) {
+      pages = await T.htmlToPdf(chrome, htmlFile, pdfFile);
+      if (pages <= 1) break;
+      const gone = T.dropOne(chosen, bank);
+      if (!gone) break;
+      dropped.push(gone);
+      await T.writeOut(dir, { [`${stem}.html`]: T.toResumeHtml(chosen) });
+    }
+  }
+  const text = T.toText(chosen);
+  const after = score(job, { text, skills: findSkills(text) }, cfg, { keepAll: true });
+  const lacking = after.missingRequired;
+  const notes = [
+    `# ${job.company} · ${job.title}`, job.url, "",
+    `- ${L("简历分", "Resume score")}: ${before ? `${base.resumeScore} → ` : ""}${after.resumeScore}`,
+    `- ${L("对上的技能", "Matched skills")}: ${after.matched.join(", ") || "-"}`,
+    `- ${L("素材库里没有的必须项（没有写进去）", "Required skills your bank doesn't cover (not added)")}: ${lacking.join(", ") || "-"}`,
+    `- ${L("缺的加分项", "Missing nice-to-haves")}: ${after.missingNice.join(", ") || "-"}`,
+    `- ${L("职位里常见、你的简历里没有的词", "Posting terms not in this resume")}: ${after.keywords.join(", ") || "-"}`,
+    chrome ? `- PDF: ${pages} ${L("页", pages === 1 ? "page" : "pages")}` : `- PDF: ${L("没有生成（没找到 Chrome，或用了 --no-pdf）", "not made (no Chrome found, or --no-pdf)")}`,
+    "", `## ${L("为了一页删掉的", "Dropped to fit one page")}`, ...(dropped.length ? dropped.map(d => `- ${d}`) : ["-"]),
+    "", `## ${L("选上的内容（按分数）", "Chosen bullets (by score)")}`,
+    ...chosen.sections.flatMap(s => s.entries.flatMap(e => [`### ${e.entry.title}`, ...e.bullets.map(b => `- [${b.score}${b.pin ? L("，固定", ", pinned") : ""}] ${b.text.replace(/\*\*/g, "")}`)])),
+  ].join("\n");
+  await T.writeOut(dir, { "notes.md": notes + "\n" });
+
+  console.log(`${C.b}${job.company}${C.r} · ${job.title}`);
+  console.log(`  ${L("简历分", "resume score")} ${before ? `${base.resumeScore} → ` : ""}${C.b}${after.resumeScore}${C.r}${before ? C.dim + L(`（原简历：${resumePath}）`, ` (vs ${resumePath})`) + C.r : ""}`);
+  if (after.matched.length) console.log(`  ${C.g}✓${C.r} ${after.matched.join(", ")}`);
+  if (lacking.length) console.log(`  ${C.y}✗ ${L("素材库里没有，没写进去", "not in your bank, so not added")}${C.r} ${lacking.join(", ")}`);
+  if (dropped.length) console.log(`  ${C.dim}${L(`为了一页删了 ${dropped.length} 条`, `dropped ${dropped.length} bullet(s) to fit one page`)}${C.r}`);
+  if (chrome && pages > 1) console.log(`  ${C.y}! ${L(`还是 ${pages} 页：把素材库里条目的 min 调小，或者删掉一些`, `still ${pages} pages: lower "min" on some entries or trim the bank`)}${C.r}`);
+  if (!chrome && !flag("no-pdf")) console.log(`  ${C.y}! ${L("没找到 Chrome：用浏览器打开 HTML 打印成 PDF，或在 config.local.json 里设 \"chrome\"", "Chrome not found: open the HTML and print to PDF, or set \"chrome\" in config.local.json")}${C.r}`);
+  console.log(`  ${chrome ? pdfFile : htmlFile}`);
+  console.log(`  ${resolve(dir, "notes.md")}`);
+  console.log(`\n${C.dim}${L("只从素材库里挑选和排序，不会编新内容。投之前自己读一遍。", "Only picks and orders text from your bank; nothing new is written. Read it before you send it.")}${C.r}`);
 }
 
 async function showSkills() {
@@ -248,6 +315,7 @@ else if (cmd === "new-profile") { const { newProfile } = await import("./newprof
 else if (cmd === "add-company") { const { addCompany } = await import("./newprofile.ts"); await addCompany(args.slice(1)); }
 else if (cmd === "open") await openReport();
 else if (cmd === "match") await match();
+else if (cmd === "tailor") await tailor();
 else if (cmd === "skills") await showSkills();
 else console.log(L(`用法：
   npm run scan                      抓所有公司，按匹配度排序，写报告到 out/
@@ -258,6 +326,7 @@ else console.log(L(`用法：
   npm run scan -- --all             不过滤，全部打分（调试用）
   npm run scan -- --dump            另外把抓到的所有职位写到 out/all/日期.jsonl
   npm run match -- <链接或txt>      给单个职位打分
+  npm run tailor -- <链接或txt>     从素材库为这个职位生成一页简历（HTML + PDF）
   npm run skills                    看简历里认出了哪些技能
   npm run profiles                  看有哪些职业 profile
   npm run setup                     回答几个问题，生成 config.local.json
@@ -271,6 +340,7 @@ else console.log(L(`用法：
   npm run scan -- --all             no filtering (debugging)
   npm run scan -- --dump            also write every fetched posting to out/all/<date>.jsonl
   npm run match -- <URL or .txt>    score one posting
+  npm run tailor -- <URL or .txt>   build a one-page resume for it from your bullet bank (HTML + PDF)
   npm run skills                    show skills found in your resume
   npm run profiles                  list career profiles
   npm run setup                     answer a few questions to write config.local.json

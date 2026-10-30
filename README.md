@@ -8,6 +8,7 @@ A local command-line tool that pulls job postings straight from employers' publi
 - **Sources:** the public job-board APIs of Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR and Oracle Recruiting, the systems behind most employers' career pages. No login, no scraping of LinkedIn or Indeed, and nothing is submitted anywhere.
 - **Matching:** keyword and rule based. It reads your resume PDF, finds the skills on it, and scores each posting on how well your resume covers it and how well it fits what you are looking for.
 - **Output:** a filterable HTML report, a Markdown/JSON report, and a short list in the terminal.
+- **Tailored resumes:** `npm run tailor` builds a one-page resume for one posting from a bank of bullets you wrote, choosing the ones that match it best. No AI; it never writes new claims.
 - **Private:** everything runs on your computer. Your resume, settings and results never leave it.
 - **Cost:** free. Scanning and scoring use no AI or paid API (only the optional `new-profile` draft uses a local model); one run of ~100 companies (~11,000 postings) takes about 10 seconds.
 
@@ -31,6 +32,7 @@ npm run scan                      # fetch every company, score, write reports
 npm run open                      # open out/report.html
 npm run match -- <posting URL>    # score one posting (Greenhouse/Ashby/Lever URLs work best)
 npm run match -- job.txt          # or a job description saved as text
+npm run tailor -- <posting URL>   # one-page resume for this posting from your bullet bank (see below)
 npm run skills                    # show which skills were found in your resume
 npm run profiles                  # list career profiles
 npm run dump -- --profile it      # fetch only, write out/all/<profile>/<date>.jsonl (no resume needed)
@@ -74,6 +76,21 @@ Filtered out before scoring (rules come from the profile): titles outside the pr
 
 It is keyword matching and does not understand meaning. Use the score to decide what to read first, not whether to apply.
 
+## Tailored resumes
+
+`npm run tailor -- <posting URL or job.txt>` builds a one-page resume for one posting.
+
+1. Copy `resume.example.json` to `resume.local.json` (gitignored) and write your own **bullet bank**: every bullet you could use, more than fits on a page. A bullet can have alternate wordings (`alt`) and extra `tags` (skill words it shows that its text doesn't spell out). Mark bullets that must always appear with `pin`, and set `min` / `max` bullets per entry. A section with `pick: 2` keeps the two entries (say, projects) that match best.
+2. tailor reads the posting, finds its required and nice-to-have skills (the same rules as `match`), and scores every bullet: required skills 3 points (core skills 6), nice-to-have 1 (core 2), posting keywords 1 each. It keeps the best bullets and wording per entry, picks the closest `title` and `summary`, and moves matching skills to the front of each skills line.
+3. It writes HTML and prints a PDF with Chrome. If the PDF runs past one page it drops the lowest-scoring bullet and prints again.
+4. It scores the result like `match` does and shows the resume score before (your current resume file) and after.
+
+Output goes to `out/tailored/<company>-<title>/`: the HTML, the PDF and `notes.md` (scores, matched skills, required skills your bank doesn't cover, what was dropped, and every chosen bullet with its points).
+
+Options: `--bank <file>` (or `"bank"` in `config.local.json`), `--out <folder>`, `--no-pdf`, `--company <name>` for a `.txt` posting. Chrome, Chromium or Edge is found automatically; set `"chrome"` in `config.local.json` or `CHROME_PATH` if it isn't.
+
+tailor only picks, orders and chooses between wordings you wrote. It never adds a skill you don't have: missing required skills are listed in `notes.md`, not added. Read the result before you send it.
+
 ## Configuration
 
 - `config.local.json` (gitignored; `npm run setup` writes it): profile, resume path, graduation month (optional), max years of experience, remote/city preferences (`locations.label` names your city list in reports, e.g. "LA/OC"), minimum score, report retention, output language (`lang`: `en` or `zh`). Any rule from the profile's `defaults` (title and text exclusions and so on) can be copied here to override it.
@@ -111,6 +128,7 @@ src/score.ts     filters, required vs nice-to-have split, resume and fit scores,
 src/skills.ts    profile loading and skill matching
 src/setup.ts     npm run setup
 src/resume.ts    resume text from PDF (unpdf), .txt or .md
+src/tailor.ts    tailored resume: bullet scoring, HTML, PDF via Chrome (tests in tailor.test.ts)
 src/tracked.ts   tracked.json lookup
 src/html.ts      HTML report
 src/cli.ts       commands and report writing
