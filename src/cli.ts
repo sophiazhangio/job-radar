@@ -108,7 +108,7 @@ async function scan() {
   });
   const all = jobs.map(j => score(j, resume, cfg, { keepAll: flag("anywhere"), loose: flag("loose") }));
   // Mark postings already in the online tracker; hide the ones you are done with (rejected, closed, skipped).
-  const tracked = await loadTracked(ROOT);
+  const tracked = await loadTracked(ROOT, (cfg as any).tracker);
   if (tracked) {
     const lookup = makeLookup(tracked.jobs);
     for (const r of all) { const t = lookup(r.job); if (t) r.tracked = { status: t.status, applied: t.applied }; }

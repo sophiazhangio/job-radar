@@ -100,6 +100,8 @@ tailor only picks, orders and chooses between wordings you wrote. It never adds 
 
 ## tracked.json format
 
+**Or use a spreadsheet.** Set `"tracker"` in `config.local.json` to a Google Sheets link (Share → General access → "Anyone with the link" can view), any CSV URL, or a local `.csv` file, and the scan reads it instead of `tracked.json`. Columns are matched by header: Company, Role (or Title/Position), Link (or URL), Status, Applied, Follow-up; others are ignored. Dates like `10/30/2026` are fine.
+
 If your application tracker can export a `tracked.json`, the scan picks up the newest one from the project folder or `~/Downloads` (including `tracked (1).json` and so on). Postings you track are labelled with their status, and those marked rejected, closed or skipped are hidden.
 
 ```json

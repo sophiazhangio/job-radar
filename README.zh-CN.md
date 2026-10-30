@@ -52,6 +52,8 @@ npm run open                      # 打开网页报告
 
 追踪表更新后想同步，就再导出一次。全程不用 AI，不用登录。文件格式见英文 README 的 "tracked.json format"。
 
+也可以直接用表格，不用导出：在 `config.local.json` 里把 `"tracker"` 设成 Google 表格链接（共享 → 一般访问权限 → 「知道链接的任何人」可查看）、CSV 链接或本地 `.csv` 文件，每次扫描都读最新的。按表头认栏位：Company、Role、Link、Status、Applied、Follow-up，其他栏不管。
+
 ## 按职位生成简历
 
 `npm run tailor -- <职位链接 或 job.txt>` 为一个职位生成一页简历。
