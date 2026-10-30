@@ -171,7 +171,7 @@
       "network (admin|technician|engineer|specialist|analyst)",
       "technical support technician",
       "computer (support|technician)",
-      "endpoint (engineer|administrator|specialist|technician)",
+      "\\bendpoint\\b",
       "\\bmsp\\b",
       "workplace (technology|engineer|tech)",
       "infrastructure (specialist|administrator|technician|analyst)",
@@ -179,7 +179,10 @@
       "microsoft 365|\\bm365\\b",
       "field technician",
       "noc (technician|analyst|engineer)",
-      "\\bis (customer |client )?(support|services)|\\bis technician|support administrator"
+      "\\bis (customer |client )?(support|services)|\\bis technician|support administrator",
+      "client support (engineer|specialist|technician|analyst)",
+      "technology support (analyst|specialist|technician)",
+      "^\\s*systems engineer\\b"
     ],
     "excludeTitle": [
       "senior",
