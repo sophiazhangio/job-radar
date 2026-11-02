@@ -26,6 +26,7 @@ npm run scan -- --loose           # 也显示没写级别/年限的职位
 npm run scan -- --dump            # 另外把抓到的所有职位写到 out/all/日期.jsonl
 npm run match -- <职位链接>       # 给单个职位打分（Greenhouse/Ashby/Lever 链接最准，其他网页也能试）
 npm run match -- job.txt          # 把 JD 复制进 txt 文件也行
+npm run bank -- resume.pdf       # 从你现有的简历生成素材库草稿（resume.local.json）
 npm run tailor -- <职位链接>      # 从你的素材库为这个职位生成一页简历（见下面）
 npm run skills                    # 看简历里认出了哪些技能（建议第一次先跑这个）
 npm run profiles                  # 看有哪些职业 profile
@@ -60,7 +61,7 @@ npm run open                      # 打开网页报告
 
 `npm run tailor -- <职位链接 或 job.txt>` 为一个职位生成一页简历。
 
-1. 把 `resume.example.json` 复制成 `resume.local.json`（不进 git），写你自己的**素材库**：所有可能用上的经历要点，可以比一页多。每条可以有几种写法（`alt`）和额外的 `tags`（这条体现了、但字面上没写出来的技能）。一定要出现的标 `pin`，每段经历用 `min` / `max` 控制条数。某一节设 `pick: 2`，就只留最匹配的两项（比如项目）。
+1. 运行 `npm run bank -- 简历.pdf`（.txt、.md 也行），从你现有的简历生成 `resume.local.json`（不进 git）草稿。它按版面（标题、日期、缩进、项目符号）读出你的原文，不用 AI。检查一遍，再把它扩充成你的**素材库**；也可以从 `resume.example.json` 开始手写。素材库是所有可能用上的经历要点，可以比一页多。每条可以有几种写法（`alt`）和额外的 `tags`（这条体现了、但字面上没写出来的技能）。一定要出现的标 `pin`，每段经历用 `min` / `max` 控制条数。某一节设 `pick: 2`，就只留最匹配的两项（比如项目）。
 2. tailor 读职位，用和 `match` 一样的规则找出必须项和加分项技能，给每条打分：必须项 3 分（核心技能 6 分），加分项 1 分（核心 2 分），职位里的关键词每个 1 分。每段经历留分最高的几条和最合适的写法，选最接近的 `title` 和 `summary`，技能栏里对上的技能排到前面。
 3. 生成 HTML，用 Chrome 打印成 PDF。超过一页就删掉分最低的一条，再打印。
 4. 像 `match` 一样给结果打分，显示改前（你现在的简历文件）和改后的简历分。

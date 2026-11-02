@@ -32,6 +32,7 @@ npm run scan                      # fetch every company, score, write reports
 npm run open                      # open out/report.html
 npm run match -- <posting URL>    # score one posting (Greenhouse/Ashby/Lever URLs work best)
 npm run match -- job.txt          # or a job description saved as text
+npm run bank -- resume.pdf        # draft your bullet bank (resume.local.json) from the resume you have
 npm run tailor -- <posting URL>   # one-page resume for this posting from your bullet bank (see below)
 npm run skills                    # show which skills were found in your resume
 npm run profiles                  # list career profiles
@@ -80,7 +81,7 @@ It is keyword matching and does not understand meaning. Use the score to decide 
 
 `npm run tailor -- <posting URL or job.txt>` builds a one-page resume for one posting.
 
-1. Copy `resume.example.json` to `resume.local.json` (gitignored) and write your own **bullet bank**: every bullet you could use, more than fits on a page. A bullet can have alternate wordings (`alt`) and extra `tags` (skill words it shows that its text doesn't spell out). Mark bullets that must always appear with `pin`, and set `min` / `max` bullets per entry. A section with `pick: 2` keeps the two entries (say, projects) that match best.
+1. Run `npm run bank -- path/to/resume.pdf` (a .txt or .md resume works too) to draft `resume.local.json` (gitignored) from the resume you already have. It reads the layout (headings, dates, indents, bullet marks) and copies your text; no AI. Check it, then grow it into your **bullet bank**, or start by hand from `resume.example.json`. The bank is every bullet you could use, more than fits on a page. A bullet can have alternate wordings (`alt`) and extra `tags` (skill words it shows that its text doesn't spell out). Mark bullets that must always appear with `pin`, and set `min` / `max` bullets per entry. A section with `pick: 2` keeps the two entries (say, projects) that match best.
 2. tailor reads the posting, finds its required and nice-to-have skills (the same rules as `match`), and scores every bullet: required skills 3 points (core skills 6), nice-to-have 1 (core 2), posting keywords 1 each. It keeps the best bullets and wording per entry, picks the closest `title` and `summary`, and moves matching skills to the front of each skills line.
 3. It writes HTML and prints a PDF with Chrome. If the PDF runs past one page it drops the lowest-scoring bullet and prints again.
 4. It scores the result like `match` does and shows the resume score before (your current resume file) and after.

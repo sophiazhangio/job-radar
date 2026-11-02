@@ -9,6 +9,7 @@
   },
   "scripts": {
     "setup": "node src/setup.ts",
+    "bank": "node src/bank.ts",
     "scan": "node src/cli.ts scan",
     "match": "node src/cli.ts match",
     "skills": "node src/cli.ts skills",
