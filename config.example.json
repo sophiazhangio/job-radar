@@ -32,6 +32,8 @@
       "huntington beach",
       "aliso viejo"
     ],
+    "_states": "Optional: whole US states, as \"CA\" or \"California\". A job anywhere in one of them counts like one of your cities.",
+    "states": [],
     "label": "Local"
   },
   "minScore": 35,

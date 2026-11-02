@@ -44,7 +44,9 @@ while (!resume) {
 const remoteUS = /^y/i.test(await ask("Include remote jobs in the US? (y/n)", "y"));
 const cities = (await ask("Cities you'd work in, comma-separated (blank = remote only)", ""))
   .split(",").map(c => c.trim().toLowerCase()).filter(Boolean);
-const label = cities.length ? await ask("A short name for that city list, shown in reports", "Local") : "Local";
+const states = (await ask("US states you'd work anywhere in, comma-separated, e.g. CA, WA (blank = none)", ""))
+  .split(",").map(s => s.trim()).filter(Boolean);
+const label = cities.length || states.length ? await ask("A short name for those places, shown in reports", "Local") : "Local";
 const defaults = JSON.parse(readFileSync(resolve(ROOT, "profiles", profile, "profile.json"), "utf8")).defaults ?? {};
 const maxYears = parseInt(await ask("Most years of experience a job may ask for", String(defaults.maxYears ?? 2)), 10);
 const graduation = await ask("Graduation month as YYYY-MM, if new-grad windows matter to you (blank = skip)", "");
@@ -56,7 +58,7 @@ const cfg: Record<string, unknown> = {
   profile, resume,
   ...(graduation ? { graduation } : {}),
   maxYears,
-  locations: { remoteUS, cities, label },
+  locations: { remoteUS, cities, ...(states.length ? { states } : {}), label },
   minScore: 35, keepDays: 7, dump: false, dumpKeepDays: 30, lang,
 };
 writeFileSync(target, JSON.stringify(cfg, null, 2) + "\n");

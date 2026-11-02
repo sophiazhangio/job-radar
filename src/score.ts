@@ -25,7 +25,8 @@ export type Config = {
   profile?: string;
   graduation?: string; // "YYYY-MM"; leave out if graduation windows don't matter to you
   maxYears: number;
-  locations: { remoteUS: boolean; cities: string[]; label?: string };
+  // cities: plain text found in the location. states: US states as "CA" or "California".
+  locations: { remoteUS: boolean; cities: string[]; states?: string[]; label?: string };
   excludeTitle: string[];
   excludeText: string[];
   includeTitle: string[];
@@ -80,9 +81,38 @@ export type Result = {
 export const NON_US = /\beu\b|europe|uk&i|canada|toronto|vancouver|montreal|london|\buk\b|united kingdom|ireland|dublin|germany|berlin|munich|france|paris|india|bangalore|bengaluru|hyderabad|singapore|japan|tokyo|australia|sydney|brazil|mexico|poland|warsaw|netherlands|amsterdam|spain|madrid|israel|tel aviv|emea|apac|latam|korea|seoul|philippines|argentina|colombia/i;
 export const US = /\bus\b|\busa\b|u\.s\.|united states|north america|americas|anywhere/i;
 
+const STATES: Record<string, string> = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut",
+  DE: "Delaware", DC: "District of Columbia", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois",
+  IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
+  MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana",
+  NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York",
+  NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania",
+  RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah",
+  VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming",
+};
+
+// True when the location names one of these US states ("Irvine, CA", "California", "US-CA-Irvine").
+// Abbreviations only count in capitals, so "ca" inside "Canada" or "Chicago" doesn't match.
+export function inStates(location: string, states: string[] = []): boolean {
+  if (!states.length) return false;
+  const res = states.flatMap(s => {
+    const t = s.trim();
+    const abbr = STATES[t.toUpperCase()] ? t.toUpperCase() : Object.keys(STATES).find(k => STATES[k].toLowerCase() === t.toLowerCase());
+    if (!abbr) return [];
+    const name = STATES[abbr].toLowerCase().replace(/ /g, "\\s+");
+    return [
+      new RegExp(`(?<![A-Za-z])${abbr}(?![A-Za-z])`),
+      // "Virginia" not inside "West Virginia"; "Washington" not when it means Washington, DC.
+      new RegExp(`(?<!west\\s)\\b${name}\\b(?!,?\\s*d\\.?\\s?c\\b)`, "i"),
+    ];
+  });
+  return location.split(/;|\|/).some(part => (!NON_US.test(part) || US.test(part)) && res.some(re => re.test(part)));
+}
+
 export function whereFits(job: Job, cfg: Config): string {
   const loc = job.location.toLowerCase();
-  if (cfg.locations.cities.some(c => loc.includes(c))) return cfg.locations.label || "Local";
+  if (cfg.locations.cities.some(c => loc.includes(c)) || inStates(job.location, cfg.locations.states)) return cfg.locations.label || "Local";
   if (cfg.locations.remoteUS && job.remote) {
     const parts = job.location.split(/;|\|/).map(p => p.trim()).filter(Boolean);
     const usPart = parts.some(p => !NON_US.test(p) || US.test(p));
