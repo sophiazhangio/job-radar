@@ -190,6 +190,33 @@ async function smartrecruiters(company: string, token: string, o: FetchOpts): Pr
   return jobs.filter((j): j is Job => !!j);
 }
 
+// Workable. token = the account in https://apply.workable.com/<token>
+async function workable(company: string, token: string, o: FetchOpts): Promise<Job[]> {
+  const api = `https://apply.workable.com/api/v3/accounts/${token}/jobs`;
+  const found: any[] = [];
+  let next: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const d = await postJson(api, { query: "", location: [], department: [], worktype: [], remote: [], ...(next ? { token: next } : {}) });
+    found.push(...(d.results ?? []));
+    next = d.nextPage;
+    if (!next || !d.results?.length) break;
+  }
+  const where = (p: any) => [p.location?.city, p.location?.region, p.location?.country].filter(Boolean).join(", ");
+  const picked = found.filter(p => p.state === "published" && o.titleOk(p.title ?? "") && (p.remote || placeOk(o, where(p))));
+  const jobs = await mapLimit(picked, 4, async (p: any) => {
+    try {
+      const j = await getJson(`https://apply.workable.com/api/v2/accounts/${token}/jobs/${p.shortcode}`);
+      const text = ["description", "requirements", "benefits"].map(k => htmlToText(j[k] ?? "")).filter(Boolean).join("\n");
+      const remote = !!(j.remote ?? p.remote);
+      return {
+        id: `wk:${token}:${p.shortcode}`, company, title: j.title ?? p.title, location: (remote ? "Remote; " : "") + where(j.location ? j : p),
+        remote, url: `https://apply.workable.com/${token}/j/${p.shortcode}/`, posted: day(j.published ?? p.published), pay: payFromText(text), text,
+      } as Job;
+    } catch { return null; }
+  });
+  return jobs.filter((j): j is Job => !!j);
+}
+
 // BambooHR career pages, common at small companies. token = the subdomain in https://<token>.bamboohr.com/careers
 async function bamboohr(company: string, token: string, o: FetchOpts): Promise<Job[]> {
   const base = `https://${token}.bamboohr.com/careers`;
@@ -327,7 +354,7 @@ async function readKnown(url: string): Promise<Job | null | undefined> {
   return null;
 }
 
-const FETCHERS: Record<string, (c: string, t: string, o: FetchOpts) => Promise<Job[]>> = { greenhouse, ashby, lever, workday, smartrecruiters, bamboohr, oracle, simplify };
+const FETCHERS: Record<string, (c: string, t: string, o: FetchOpts) => Promise<Job[]>> = { greenhouse, ashby, lever, workday, smartrecruiters, bamboohr, oracle, workable, simplify };
 
 export async function fetchAll(list: [string, string, string][], onError: (msg: string) => void, opts: FetchOpts = { searchTerms: [], titleOk: () => true }): Promise<Job[]> {
   const out: Job[] = [];
@@ -344,7 +371,12 @@ export async function fetchAll(list: [string, string, string][], onError: (msg: 
   await Promise.all(Array.from({ length: 8 }, worker));
   // The same posting can come from a company's board and from a shared list; keep the first.
   const seen = new Set<string>();
-  return out.filter(j => { const k = j.id || j.url; if (seen.has(k)) return false; seen.add(k); return true; });
+  // The same posting can come from a company's board and from the new-grad list: match by id and by link.
+  return out.filter(j => {
+    const keys = [j.id, j.url && canonicalUrl(j.url)].filter(Boolean) as string[];
+    if (keys.some(k => seen.has(k))) return false;
+    keys.forEach(k => seen.add(k)); return true;
+  });
 }
 
 // Fetch one posting from a URL. Uses the ATS API when the URL is a known board, else strips the page HTML.

@@ -27,6 +27,7 @@ export function boardFromUrl(url: string): [string, string] | null {
   if ((m = u.match(/([\w-]+)\.(wd\d+)\.myworkdayjobs\.com\/(?:[a-z]{2}-[A-Z]{2}\/)?([\w-]+)/i))) return ["workday", `${m[1]}.${m[2]}/${m[3]}`];
   if ((m = u.match(/(?:jobs|careers)\.smartrecruiters\.com\/([\w-]+)/i))) return ["smartrecruiters", m[1]];
   if ((m = u.match(/([\w-]+)\.bamboohr\.com/i))) return ["bamboohr", m[1]];
+  if ((m = u.match(/apply\.workable\.com\/([\w-]+)/i))) return ["workable", m[1]];
   if ((m = u.match(/([\w.-]+)\.oraclecloud\.com\/hcmUI\/CandidateExperience\/[a-z-]+\/sites\/([\w-]+)/i))) return ["oracle", `${m[1]}/${m[2]}`];
   return null;
 }
@@ -176,7 +177,7 @@ export async function addCompany(argv: string[]) {
   const file = resolve(PROFILES, name, "companies.json");
   if (!existsSync(file)) done({ ok: false, error: `No profile named "${name}".` }, 1);
   const b = boardFromUrl(url);
-  if (!b) done({ ok: false, error: "That link isn't on a supported job board (Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR, Oracle). Open one job posting on the company's careers page and use that address." }, 1);
+  if (!b) done({ ok: false, error: "That link isn't on a supported job board (Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR, Oracle, Workable). Open one job posting on the company's careers page and use that address." }, 1);
   const board: [string, string, string] = [display ?? b![1], b![0], b![1]];
   let err = "";
   const jobs = await fetchAll([board], e => { err = e; }, { searchTerms: [], titleOk: () => true });

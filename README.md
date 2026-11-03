@@ -5,7 +5,7 @@ English · [中文](README.zh-CN.md)
 A local command-line tool that pulls job postings straight from employers' public job boards and ranks them against your resume.
 
 - **Career profiles:** pick the kind of job you want. It comes with `software` (software engineering) and `it` (IT support and systems administration), and a profile is just two JSON files, so more can be added without code. See [profiles/](profiles/README.md).
-- **Sources:** the public job-board APIs of Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR and Oracle Recruiting, the systems behind most employers' career pages, plus the community [SimplifyJobs new-grad list](https://github.com/SimplifyJobs/New-Grad-Positions) (updated daily) for fresh entry-level postings from hundreds of companies not on your list. No login, no scraping of LinkedIn or Indeed, and nothing is submitted anywhere.
+- **Sources:** the public job-board APIs of Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR, Oracle Recruiting and Workable, the systems behind most employers' career pages, plus the community [SimplifyJobs new-grad list](https://github.com/SimplifyJobs/New-Grad-Positions) (updated daily) for fresh entry-level postings from hundreds of companies not on your list. No login, no scraping of LinkedIn or Indeed, and nothing is submitted anywhere.
 - **Matching:** keyword and rule based. It reads your resume PDF, finds the skills on it, and scores each posting on how well your resume covers it and how well it fits what you are looking for.
 - **Output:** a filterable HTML report, a Markdown/JSON report, and a short list in the terminal.
 - **Tailored resumes:** `npm run tailor` builds a one-page resume for one posting from a bank of bullets you wrote, choosing the ones that match it best. No AI; it never writes new claims.
@@ -162,7 +162,7 @@ If your application tracker can export a `tracked.json`, the scan picks up the n
 
 ```
 profiles/        career profiles: skills, title rules, company lists
-src/sources.ts   fetch Greenhouse / Ashby / Lever / Workday / SmartRecruiters / BambooHR / Oracle boards and the SimplifyJobs list
+src/sources.ts   fetch Greenhouse / Ashby / Lever / Workday / SmartRecruiters / BambooHR / Oracle / Workable boards and the SimplifyJobs list
 src/score.ts     filters, required vs nice-to-have split, resume and fit scores, keyword gaps
 src/skills.ts    profile loading and skill matching
 src/setup.ts     npm run setup

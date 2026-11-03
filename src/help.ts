@@ -131,8 +131,8 @@ const GROUPS: [T, Command[]][] = [
       name: "add-company",
       args: "<profile> <招聘页链接> [\"显示名\"]",
       summary: ["给某个 profile 加一家公司的招聘板（先确认能抓到）", "Add one employer's job board to a profile (checks it works first)"],
-      detail: ["链接要在支持的招聘板上：Greenhouse、Ashby、Lever、Workday、SmartRecruiters、BambooHR、Oracle。打开公司招聘页里任意一个职位，用那个地址最稳。",
-               "The link must be on a supported board: Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR, Oracle. Opening any one posting on the careers page and using that address works best."],
+      detail: ["链接要在支持的招聘板上：Greenhouse、Ashby、Lever、Workday、SmartRecruiters、BambooHR、Oracle、Workable。打开公司招聘页里任意一个职位，用那个地址最稳。",
+               "The link must be on a supported board: Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR, Oracle, Workable. Opening any one posting on the careers page and using that address works best."],
       examples: ["npm run add-company -- it https://boards.greenhouse.io/acme \"Acme Corp\""],
     },
     {

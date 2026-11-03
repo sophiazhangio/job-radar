@@ -2,7 +2,7 @@
 
 [English](README.md) · 中文
 
-从雇主公开的招聘板（Greenhouse、Ashby、Lever、Workday、SmartRecruiters、BambooHR、Oracle 的公开 API），以及社区维护、每天更新的 [SimplifyJobs 应届生职位列表](https://github.com/SimplifyJobs/New-Grad-Positions)（补上你名单之外几百家公司的新职位）抓职位，再用关键词规则跟你的简历比对打分。只在本地运行，不登录任何网站，不投递，不填表，简历和结果都不离开你的电脑。
+从雇主公开的招聘板（Greenhouse、Ashby、Lever、Workday、SmartRecruiters、BambooHR、Oracle、Workable 的公开 API），以及社区维护、每天更新的 [SimplifyJobs 应届生职位列表](https://github.com/SimplifyJobs/New-Grad-Positions)（补上你名单之外几百家公司的新职位）抓职位，再用关键词规则跟你的简历比对打分。只在本地运行，不登录任何网站，不投递，不填表，简历和结果都不离开你的电脑。
 
 **职业 profile**：选你要找的工作类型。目前有 `software`（软件工程，默认找应届和初级，可以改成 mid 或 senior）和 `it`（IT 支持和系统管理）。一个 profile 就是两个 JSON 文件，加新职业不用改代码，见 [profiles/](profiles/README.md)。
 
