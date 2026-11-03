@@ -5,7 +5,7 @@ English · [中文](README.zh-CN.md)
 A local command-line tool that pulls job postings straight from employers' public job boards and ranks them against your resume.
 
 - **Career profiles:** pick the kind of job you want. It comes with `software` (entry-level software engineering) and `it` (IT support and systems administration), and a profile is just two JSON files, so more can be added without code. See [profiles/](profiles/README.md).
-- **Sources:** the public job-board APIs of Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR and Oracle Recruiting, the systems behind most employers' career pages. No login, no scraping of LinkedIn or Indeed, and nothing is submitted anywhere.
+- **Sources:** the public job-board APIs of Greenhouse, Ashby, Lever, Workday, SmartRecruiters, BambooHR and Oracle Recruiting, the systems behind most employers' career pages, plus the community [SimplifyJobs new-grad list](https://github.com/SimplifyJobs/New-Grad-Positions) (updated daily) for fresh entry-level postings from hundreds of companies not on your list. No login, no scraping of LinkedIn or Indeed, and nothing is submitted anywhere.
 - **Matching:** keyword and rule based. It reads your resume PDF, finds the skills on it, and scores each posting on how well your resume covers it and how well it fits what you are looking for.
 - **Output:** a filterable HTML report, a Markdown/JSON report, and a short list in the terminal.
 - **Tailored resumes:** `npm run tailor` builds a one-page resume for one posting from a bank of bullets you wrote, choosing the ones that match it best. No AI; it never writes new claims.
@@ -94,7 +94,7 @@ tailor only picks, orders and chooses between wordings you wrote. It never adds 
 
 ## Configuration
 
-- `config.local.json` (gitignored; `npm run setup` writes it): profile, resume path, graduation month (optional), max years of experience, remote/city preferences (`locations.label` names your city list in reports, e.g. "LA/OC"), minimum score, report retention, output language (`lang`: `en` or `zh`). Any rule from the profile's `defaults` (title and text exclusions and so on) can be copied here to override it.
+- `config.local.json` (gitignored; `npm run setup` writes it): profile, resume path, graduation month (optional), max years of experience, remote/city preferences (`locations.label` names your city list in reports, e.g. "LA/OC"; `locations.states` takes whole US states), how many days old a posting may be (`maxAgeDays`, default 30), minimum score, report retention, output language (`lang`: `en` or `zh`). Any rule from the profile's `defaults` (title and text exclusions and so on) can be copied here to override it.
 - `profiles/<name>/profile.json`: the skill dictionary, title rules and scoring tweaks for a career.
 - `profiles/<name>/companies.json`: which boards to fetch. The `software` list leans toward AI, developer-tool, fintech and Los Angeles companies; the `it` list toward Orange County and Los Angeles employers. Add your own; [profiles/README.md](profiles/README.md) shows how to find a company's board.
 - Use `"companies": "path/to/file.json"` in `config.local.json` to point at your own list instead.
@@ -140,7 +140,7 @@ If your application tracker can export a `tracked.json`, the scan picks up the n
 
 ```
 profiles/        career profiles: skills, title rules, company lists
-src/sources.ts   fetch Greenhouse / Ashby / Lever / Workday / SmartRecruiters / BambooHR / Oracle boards
+src/sources.ts   fetch Greenhouse / Ashby / Lever / Workday / SmartRecruiters / BambooHR / Oracle boards and the SimplifyJobs list
 src/score.ts     filters, required vs nice-to-have split, resume and fit scores, keyword gaps
 src/skills.ts    profile loading and skill matching
 src/setup.ts     npm run setup

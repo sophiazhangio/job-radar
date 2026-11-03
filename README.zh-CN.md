@@ -2,7 +2,7 @@
 
 [English](README.md) · 中文
 
-从雇主公开的招聘板（Greenhouse、Ashby、Lever、Workday、SmartRecruiters、BambooHR、Oracle 的公开 API）抓职位，再用关键词规则跟你的简历比对打分。只在本地运行，不登录任何网站，不投递，不填表，简历和结果都不离开你的电脑。
+从雇主公开的招聘板（Greenhouse、Ashby、Lever、Workday、SmartRecruiters、BambooHR、Oracle 的公开 API），以及社区维护、每天更新的 [SimplifyJobs 应届生职位列表](https://github.com/SimplifyJobs/New-Grad-Positions)（补上你名单之外几百家公司的新职位）抓职位，再用关键词规则跟你的简历比对打分。只在本地运行，不登录任何网站，不投递，不填表，简历和结果都不离开你的电脑。
 
 **职业 profile**：选你要找的工作类型。目前有 `software`（入门级软件工程）和 `it`（IT 支持和系统管理）。一个 profile 就是两个 JSON 文件，加新职业不用改代码，见 [profiles/](profiles/README.md)。
 
@@ -74,7 +74,7 @@ tailor 只从你写的内容里挑选、排序、选写法，不会加你没有�
 
 ## 改设置
 
-- `config.local.json`（`npm run setup` 生成）：profile、简历路径、毕业时间（可不填）、最多几年经验、可接受的城市（`locations.label` 是报告里这组城市的名字，比如 "LA/OC"）、最低分、输出语言（`lang`：`zh` 中文，`en` 英文；也可以在命令后加 `--lang zh`）。profile 里 `defaults` 的任何规则（标题排除词等）复制到这里就能覆盖。
+- `config.local.json`（`npm run setup` 生成）：profile、简历路径、毕业时间（可不填）、最多几年经验、可接受的城市（`locations.label` 是报告里这组城市的名字，比如 "LA/OC"；`locations.states` 可以填整个州）、职位最多发布了几天（`maxAgeDays`，默认 30）、最低分、输出语言（`lang`：`zh` 中文，`en` 英文；也可以在命令后加 `--lang zh`）。profile 里 `defaults` 的任何规则（标题排除词等）复制到这里就能覆盖。
 - `profiles/<名字>/profile.json`：这个职业的技能词典、标题规则和打分细节。简历或 JD 里的写法没认出来，就在这里加。
 - `profiles/<名字>/companies.json`：要抓的公司。`software` 名单偏 AI、开发者工具、金融科技和 LA 公司；`it` 名单偏橙县和 LA 的雇主。怎么找一家公司的招聘板见 [profiles/README.md](profiles/README.md)。
 - 想临时试另一个 profile：命令后加 `--profile it`，结果写到 `out/it/`，不会覆盖你自己的报告。

@@ -45,6 +45,7 @@ profiles/<name>/
 | `smartrecruiters` | company id | `jobs.smartrecruiters.com/Acme1` → `Acme1` |
 | `bamboohr` | subdomain | `acme.bamboohr.com/careers` → `acme` |
 | `oracle` | `host/site` | `abcd.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1` → `abcd.fa.us2/CX_1` |
+| `simplify` | categories, e.g. `Software,AI/ML/Data;days=30` | The [SimplifyJobs new-grad list](https://github.com/SimplifyJobs/New-Grad-Positions), a community list of entry-level postings from hundreds of companies, updated daily. Categories: Software, AI/ML/Data, Hardware, Product, Quant. `days` is how far back to look. |
 
 Find a company's board by opening a posting on its careers page and looking at the address.
 

@@ -128,6 +128,9 @@ a { color: var(--accent); }
     <select id="sort" aria-label="${L("排序", "Sort")}">
       <option value="score">${L("按总分", "Total score")}</option><option value="resume">${L("按简历分", "Resume score")}</option><option value="fit">${L("按条件分", "Fit score")}</option><option value="posted">${L("按发布日期", "Newest")}</option>
     </select>
+    <select id="age" aria-label="${L("发布时间", "Posted")}">
+      <option value="0">${L("任何时间", "Posted any time")}</option><option value="1">${L("24 小时内", "Past 24 hours")}</option><option value="3">${L("3 天内", "Past 3 days")}</option><option value="7">${L("一周内", "Past week")}</option><option value="14">${L("两周内", "Past 2 weeks")}</option><option value="30">${L("一个月内", "Past month")}</option>
+    </select>
     <label class="chk"><input type="checkbox" id="onlyNew"> ${L("只看新的", "New only")}</label>
     <label class="chk"><input type="checkbox" id="hideTracked"> ${L("隐藏已追踪", "Hide tracked")}</label>
     <input type="search" id="q" placeholder="${L("搜公司、职位、技能", "Search company, role, skill")}" aria-label="${L("搜索", "Search")}">
@@ -138,7 +141,8 @@ a { color: var(--accent); }
 <script id="data" type="application/json">${json}</script>
 <script>
 const { meta, t, rows } = JSON.parse(document.getElementById("data").textContent);
-const state = { where: "", label: "", sort: "score", onlyNew: false, hideTracked: false, q: "" };
+const state = { where: "", label: "", sort: "score", age: 0, onlyNew: false, hideTracked: false, q: "" };
+const ageDays = r => r.posted ? (Date.now() - Date.parse(r.posted + "T00:00:00Z")) / 864e5 : Infinity;
 const STATUS = t.status;
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -181,7 +185,7 @@ function card(r) {
 function render() {
   const q = state.q.trim().toLowerCase();
   let list = rows.filter(r =>
-    (!state.where || r.where === state.where) && (!state.label || r.label === state.label) && (!state.onlyNew || r.isNew) && (!state.hideTracked || !r.tracked) &&
+    (!state.where || r.where === state.where) && (!state.label || r.label === state.label) && (!state.onlyNew || r.isNew) && (!state.hideTracked || !r.tracked) && (!state.age || ageDays(r) <= state.age + 1) &&
     (!q || [r.company, r.title, r.location, ...r.matched, ...r.missingRequired, ...r.keywords].join(" ").toLowerCase().includes(q)));
   const key = state.sort;
   list = list.slice().sort((a, b) => key === "posted" ? String(b.posted).localeCompare(String(a.posted)) : b[key] - a[key] || b.score - a.score);
@@ -199,6 +203,7 @@ for (const id of ["where", "label"]) {
   });
 }
 $("sort").addEventListener("change", e => { state.sort = e.target.value; render(); });
+$("age").addEventListener("change", e => { state.age = Number(e.target.value); render(); });
 $("onlyNew").addEventListener("change", e => { state.onlyNew = e.target.checked; render(); });
 $("hideTracked").addEventListener("change", e => { state.hideTracked = e.target.checked; render(); });
 $("q").addEventListener("input", e => { state.q = e.target.value; render(); });

@@ -36,6 +36,8 @@
     "states": [],
     "label": "Local"
   },
+  "_maxAgeDays": "Hide postings first posted more than this many days ago (postings with no date are kept). The report also has a Posted filter.",
+  "maxAgeDays": 30,
   "minScore": 35,
   "keepDays": 7,
   "dump": false,

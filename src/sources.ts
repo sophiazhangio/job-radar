@@ -244,7 +244,82 @@ async function oracle(company: string, token: string, o: FetchOpts): Promise<Job
   return jobs.filter((j): j is Job => !!j);
 }
 
-const FETCHERS: Record<string, (c: string, t: string, o: FetchOpts) => Promise<Job[]>> = { greenhouse, ashby, lever, workday, smartrecruiters, bamboohr, oracle };
+// The SimplifyJobs New-Grad-Positions list on GitHub: a community-kept list of entry-level postings from
+// hundreds of companies, updated daily. token = categories to keep, comma-separated (Software, AI/ML/Data,
+// Hardware, Product, Quant), plus optional ";days=N" for how far back to look (default 30).
+// Each posting's text comes from its own job board when job-radar knows it, else from the page.
+const SIMPLIFY = "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json";
+async function simplify(_company: string, token: string, o: FetchOpts): Promise<Job[]> {
+  const [catPart, ...opts] = token.split(";");
+  const cats = new Set(catPart.split(",").map(c => c.trim().toLowerCase()).filter(Boolean));
+  const days = Number(opts.find(x => /^\s*days=/.test(x))?.split("=")[1]) || 30;
+  const since = Date.now() / 1000 - days * 86400;
+  const list = (await getJson(SIMPLIFY)) as any[];
+  const picked = list.filter(x => x.active && x.is_visible !== false && x.url && (x.date_posted ?? 0) >= since
+    && (!cats.size || cats.has(String(x.category ?? "").toLowerCase()))
+    && o.titleOk(x.title ?? "") && placeOk(o, (x.locations ?? []).join("; ")));
+  const boards = new Map<string, Promise<Job[]>>();
+  const board = (key: string, load: () => Promise<Job[]>) => {
+    if (!boards.has(key)) boards.set(key, load().catch(() => []));
+    return boards.get(key)!;
+  };
+  const jobs = await mapLimit(picked, 6, async x => {
+    const loc = (x.locations ?? []).join("; ");
+    let d: Job | null = null;
+    try { d = await postingAt(x.url, board); } catch { /* closed or unreadable: keep the list's own details */ }
+    if (d === undefined) return null; // the board no longer lists it: closed
+    const note = "Listed on the SimplifyJobs new-grad list (entry level).";
+    return {
+      id: d?.id ?? `simplify:${x.id}`, company: x.company_name ?? d?.company ?? "", title: d?.title || x.title,
+      location: d?.location || loc, remote: d?.remote || /remote/i.test(loc), url: x.url,
+      posted: d?.posted || day(x.date_posted * 1000), pay: d?.pay ?? "", text: `${d?.text ?? x.title}\n\n${note}`,
+    } as Job;
+  });
+  return jobs.filter((j): j is Job => !!j);
+}
+
+// One posting from its URL, using the board's API when job-radar knows the board.
+// Returns undefined when a known board no longer lists the posting.
+async function postingAt(url: string, board: (key: string, load: () => Promise<Job[]>) => Promise<Job[]>): Promise<Job | null | undefined> {
+  let m = url.match(/jobs\.ashbyhq\.com\/([^/?#]+)\/([0-9a-f-]{36})/);
+  if (m) { const [, b, id] = m; return (await board(`ashby:${b}`, () => ashby(b, b))).find(j => j.id.endsWith(id)); }
+  m = url.match(/jobs\.lever\.co\/([^/?#]+)\/([0-9a-f-]{36})/);
+  if (m) { const [, b, id] = m; return (await board(`lever:${b}`, () => lever(b, b))).find(j => j.id.endsWith(id)); }
+  m = url.match(/^https:\/\/([\w-]+)\.(wd\d+)\.myworkdayjobs\.com\/(?:[a-z]{2}-[a-z]{2}\/)?([^/?#]+)(\/job\/[^?#]+?)(?:\/apply[^?#]*)?(?:[?#].*)?$/i);
+  if (m) {
+    const [, tenant, wd, site, path] = m;
+    const j = (await getJson(`https://${tenant}.${wd}.myworkdayjobs.com/wday/cxs/${tenant}/${site}${path}`)).jobPostingInfo ?? {};
+    const text = htmlToText(j.jobDescription ?? "");
+    const loc = [j.location, ...(j.additionalLocations ?? [])].filter(Boolean).join("; ");
+    return {
+      id: `wd:${tenant}:${j.jobReqId ?? path}`, company: tenant, title: j.title ?? "", location: loc,
+      remote: /remote/i.test(`${j.remoteType ?? ""} ${loc}`), url, posted: j.startDate ? day(j.startDate) : "", pay: payFromText(text), text,
+    };
+  }
+  m = url.match(/^https:\/\/([\w-]+\.fa\.[\w-]+)\.oraclecloud\.com\/hcmUI\/CandidateExperience\/[\w-]+\/sites\/([\w-]+)\/job\/(\d+)/);
+  if (m) {
+    const [, host, site, id] = m;
+    const d = (await getJson(`https://${host}.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%22${id}%22,siteNumber=${site}`)).items?.[0];
+    if (!d) return undefined;
+    const text = ["ExternalDescriptionStr", "ExternalResponsibilitiesStr", "ExternalQualificationsStr"].map(k => htmlToText(d[k] ?? "")).filter(Boolean).join("\n");
+    const remote = /REMOTE/.test(d.WorkplaceTypeCode ?? "");
+    return { id: `or:${host}:${id}`, company: host, title: d.Title ?? "", location: (remote ? "Remote; " : "") + (d.PrimaryLocation ?? ""), remote, url, posted: day(d.ExternalPostedStartDate), pay: payFromText(text), text };
+  }
+  m = url.match(/apply\.workable\.com\/([\w-]+)\/j\/(\w+)/);
+  if (m) {
+    const [, acct, code] = m;
+    const j = await getJson(`https://apply.workable.com/api/v2/accounts/${acct}/jobs/${code}`);
+    const text = ["description", "requirements", "benefits"].map(k => htmlToText(j[k] ?? "")).filter(Boolean).join("\n");
+    const loc = [j.location?.city, j.location?.region, j.location?.country].filter(Boolean).join(", ");
+    return { id: `wk:${acct}:${code}`, company: acct, title: j.title ?? "", location: (j.remote ? "Remote; " : "") + loc, remote: !!j.remote, url, posted: day(j.published), pay: payFromText(text), text };
+  }
+  const j = await fetchOne(url);
+  if (j.text.length < 200) return null;
+  // A plain web page: its <title> is rarely just the job title, and "remote" anywhere in the page proves little.
+  return { ...j, title: "", location: "", remote: false };
+}
+
+const FETCHERS: Record<string, (c: string, t: string, o: FetchOpts) => Promise<Job[]>> = { greenhouse, ashby, lever, workday, smartrecruiters, bamboohr, oracle, simplify };
 
 export async function fetchAll(list: [string, string, string][], onError: (msg: string) => void, opts: FetchOpts = { searchTerms: [], titleOk: () => true }): Promise<Job[]> {
   const out: Job[] = [];
@@ -259,7 +334,9 @@ export async function fetchAll(list: [string, string, string][], onError: (msg: 
     }
   };
   await Promise.all(Array.from({ length: 8 }, worker));
-  return out;
+  // The same posting can come from a company's board and from a shared list; keep the first.
+  const seen = new Set<string>();
+  return out.filter(j => { const k = j.id || j.url; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
 // Fetch one posting from a URL. Uses the ATS API when the URL is a known board, else strips the page HTML.

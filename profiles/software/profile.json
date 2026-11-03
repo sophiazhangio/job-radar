@@ -99,6 +99,7 @@
   },
   "searchTerms": ["software engineer", "software developer"],
   "defaults": {
+    "maxAgeDays": 30,
     "maxYears": 2,
     "excludeTitle": [
       "senior",

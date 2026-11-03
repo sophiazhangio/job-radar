@@ -35,6 +35,7 @@ export type Config = {
   requireLevel?: boolean; // true: drop postings that state no level or years (default true)
   maxTitleLevel?: number; // highest title level kept: 1 drops "II" and up, 2 drops "III" and up (default 1)
   minScore: number;
+  maxAgeDays?: number; // drop postings first posted more than this many days ago (postings with no date are kept)
 };
 
 const anyRe = (list: string[] | undefined, s: string) => (list ?? []).some(p => new RegExp(p, "i").test(s));
@@ -216,6 +217,8 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   let where = whereFits(job, cfg);
   if (where === "Remote US" && NON_US.test(job.title) && !US.test(job.title)) where = "";
   if (!dropped && !where && !opts.keepAll) dropped = `location not remote US or one of your cities (${job.location || "unknown"})`;
+  const age = job.posted ? Math.floor((Date.now() - Date.parse(`${job.posted}T00:00:00Z`)) / 864e5) : null;
+  if (!dropped && !opts.keepAll && cfg.maxAgeDays && age !== null && age > cfg.maxAgeDays) dropped = `posted ${age} days ago`;
 
   const years = minYears(text);
   if (!dropped && years !== null && years > cfg.maxYears) dropped = `asks for ${years}+ years`;
