@@ -2,13 +2,14 @@
 // through the Apps Script receiver in tracker/apps-script.gs. Score, link, location and pay come from
 // job-radar; the resume version is yours to pick (or pass --resume).
 
-import type { Job } from "./sources.ts";
+import { canonicalUrl, type Job } from "./sources.ts";
+import { loadSheet } from "./tracked.ts";
 import type { Result } from "./score.ts";
 import { L } from "./i18n.ts";
 
 type Ctx = {
   args: string[]; opt: (n: string) => string | undefined; root: string;
-  cfg: { trackerWebhook?: string; trackerToken?: string };
+  cfg: { trackerWebhook?: string; trackerToken?: string; tracker?: string };
   getJob: (t: string) => Promise<Job>; scoreJob: (j: Job) => Promise<Result>;
 };
 
@@ -42,6 +43,17 @@ export async function applied(ctx: Ctx) {
     process.exit(1);
   }
   const company = opt("company") ?? companyName(job?.company ?? "");
+  if (!company) console.warn(L("这个网站没写公司名，表格里公司栏会是空的；可以加 --company \"公司\"。", "This site doesn't name the company, so Company will be blank; add --company \"Name\" to fill it."));
+  // Same posting already in the sheet under another form of the link (…/apply, ?src=Linkedin)? Send its link as written there,
+  // so the sheet updates that row instead of adding a second one.
+  let link = opt("link") ?? (/^https?:\/\//.test(target) ? canonicalUrl(target) : "");
+  if (link && cfg.tracker) {
+    try {
+      const { jobs } = await loadSheet(cfg.tracker, ctx.root);
+      const same = jobs.find(t => t.url && canonicalUrl(t.url) === canonicalUrl(link));
+      if (same) link = same.url;
+    } catch { /* sheet not readable: the sheet's own exact-link check still applies */ }
+  }
   const row: Record<string, string | number> = {
     Company: company,
     Role: opt("role") ?? job?.title ?? "",
@@ -51,7 +63,7 @@ export async function applied(ctx: Ctx) {
     "Resume used": opt("resume") ?? "",
     Location: job ? (job.remote ? `Remote${job.location ? " / " + job.location : ""}` : job.location) : "",
     Pay: job?.pay ?? "",
-    Link: opt("link") ?? (/^https?:\/\//.test(target) ? target : ""),
+    Link: link,
     Notes: opt("note") ?? "",
   };
   const res = await fetch(cfg.trackerWebhook, { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify({ token: cfg.trackerToken, row }), redirect: "follow" });

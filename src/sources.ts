@@ -285,7 +285,18 @@ async function postingAt(url: string, board: (key: string, load: () => Promise<J
   if (m) { const [, b, id] = m; return (await board(`ashby:${b}`, () => ashby(b, b))).find(j => j.id.endsWith(id)); }
   m = url.match(/jobs\.lever\.co\/([^/?#]+)\/([0-9a-f-]{36})/);
   if (m) { const [, b, id] = m; return (await board(`lever:${b}`, () => lever(b, b))).find(j => j.id.endsWith(id)); }
-  m = url.match(/^https:\/\/([\w-]+)\.(wd\d+)\.myworkdayjobs\.com\/(?:[a-z]{2}-[a-z]{2}\/)?([^/?#]+)(\/job\/[^?#]+?)(?:\/apply[^?#]*)?(?:[?#].*)?$/i);
+  const known = await readKnown(url);
+  if (known !== null) return known;
+  const j = await fetchPage(url);
+  if (j.text.length < 200) return null;
+  // A plain web page: its <title> is rarely just the job title, and "remote" anywhere in the page proves little.
+  return { ...j, title: "", location: "", remote: false };
+}
+
+// Workday, Oracle and Workable postings, read through each board's API.
+// Returns null when the URL is not one of these, undefined when the posting is gone.
+async function readKnown(url: string): Promise<Job | null | undefined> {
+  let m = url.match(/^https:\/\/([\w-]+)\.(wd\d+)\.myworkdayjobs\.com\/(?:[a-z]{2}-[a-z]{2}\/)?([^/?#]+)(\/job\/[^?#]+?)(?:\/apply[^?#]*)?(?:[?#].*)?$/i);
   if (m) {
     const [, tenant, wd, site, path] = m;
     const j = (await getJson(`https://${tenant}.${wd}.myworkdayjobs.com/wday/cxs/${tenant}/${site}${path}`)).jobPostingInfo ?? {};
@@ -303,7 +314,7 @@ async function postingAt(url: string, board: (key: string, load: () => Promise<J
     if (!d) return undefined;
     const text = ["ExternalDescriptionStr", "ExternalResponsibilitiesStr", "ExternalQualificationsStr"].map(k => htmlToText(d[k] ?? "")).filter(Boolean).join("\n");
     const remote = /REMOTE/.test(d.WorkplaceTypeCode ?? "");
-    return { id: `or:${host}:${id}`, company: host, title: d.Title ?? "", location: (remote ? "Remote; " : "") + (d.PrimaryLocation ?? ""), remote, url, posted: day(d.ExternalPostedStartDate), pay: payFromText(text), text };
+    return { id: `or:${host}:${id}`, company: "", title: d.Title ?? "", location: (remote ? "Remote; " : "") + (d.PrimaryLocation ?? ""), remote, url, posted: day(d.ExternalPostedStartDate), pay: payFromText(text), text };
   }
   m = url.match(/apply\.workable\.com\/([\w-]+)\/j\/(\w+)/);
   if (m) {
@@ -313,10 +324,7 @@ async function postingAt(url: string, board: (key: string, load: () => Promise<J
     const loc = [j.location?.city, j.location?.region, j.location?.country].filter(Boolean).join(", ");
     return { id: `wk:${acct}:${code}`, company: acct, title: j.title ?? "", location: (j.remote ? "Remote; " : "") + loc, remote: !!j.remote, url, posted: day(j.published), pay: payFromText(text), text };
   }
-  const j = await fetchOne(url);
-  if (j.text.length < 200) return null;
-  // A plain web page: its <title> is rarely just the job title, and "remote" anywhere in the page proves little.
-  return { ...j, title: "", location: "", remote: false };
+  return null;
 }
 
 const FETCHERS: Record<string, (c: string, t: string, o: FetchOpts) => Promise<Job[]>> = { greenhouse, ashby, lever, workday, smartrecruiters, bamboohr, oracle, simplify };
@@ -361,10 +369,38 @@ export async function fetchOne(url: string): Promise<Job> {
     if (!j) throw new Error("This Lever posting is not listed any more (probably closed).");
     return j;
   }
+  const known = await readKnown(url);
+  if (known === undefined) throw new Error("This posting is not listed any more (probably closed).");
+  if (known) return known;
+  return fetchPage(url);
+}
+
+// Any other job page: company from the site name, title from the page title without the company part.
+async function fetchPage(url: string): Promise<Job> {
   const r = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
   if (!r.ok) throw new Error(`Could not open the page (${r.status}). Save the job text to a .txt file and pass that instead.`);
   const html = await r.text();
-  const title = decode(html.match(/<title[^>]*>([^<]*)/i)?.[1] ?? "").trim();
+  const site = decode(html.match(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)/i)?.[1] ?? "").trim();
+  const host = new URL(url).hostname.replace(/^(www|careers?|jobs?|apply|recruiting|talent|hire)\./, "").split(".")[0];
+  const company = site && site.length <= 40 ? site : host;
+  const raw = decode((html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i)?.[1] ?? html.match(/<title[^>]*>([^<]*)/i)?.[1] ?? "")).trim();
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const title = raw
+    .replace(new RegExp(`\\s*(?:[-–—|:@]|\\bat\\b)\\s*(?:${esc(company)}|${esc(host)})\\b.*$`, "i"), "")
+    .replace(/^job application for\s+/i, "").replace(/\s+at\s+[^|–—-]+$/i, "").trim() || raw;
   const text = htmlToText(html);
-  return { id: url, company: new URL(url).hostname, title, location: "", remote: /remote/i.test(text), url, posted: "", pay: payFromText(text), text };
+  return { id: url, company, title, location: "", remote: /remote/i.test(text), url, posted: "", pay: payFromText(text), text };
+}
+
+// The same posting can be linked many ways: with /apply, tracking parameters, a trailing slash.
+export function canonicalUrl(url: string): string {
+  let u: URL;
+  try { u = new URL(url.trim().replace(/^(https?:\/\/)+/i, "https://")); } catch { return url.trim(); }
+  u.hash = "";
+  for (const k of [...u.searchParams.keys()]) {
+    if (/^(utm_|src$|source$|ref$|refid$|trk|iis|gh_src$|lever-|lang$|embed$|codes?$|mode$)/i.test(k)) u.searchParams.delete(k);
+  }
+  u.pathname = u.pathname.replace(/\/(apply|application)(\/.*)?$/i, "").replace(/\/+$/, "");
+  u.hostname = u.hostname.toLowerCase();
+  return u.toString().replace(/\/(\?|$)/, "$1");
 }
