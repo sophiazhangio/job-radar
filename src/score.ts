@@ -204,6 +204,16 @@ export function keywordGaps(text: string, resumeText: string, company = "", limi
 
 // ---- Scoring ----
 
+// Duties that only senior engineers are given. Used when a posting states no years and no entry-level wording.
+export const SENIOR_TEXT = /\b(technical leadership|tech lead\b|lead(ing)? (the )?(technical )?(design|architecture|strategy|roadmap)|set(ting)? (the )?(technical|engineering) (direction|vision|strategy)|raise the (quality )?bar|mentor(ing|s)? (and \w+ )?(other |junior |more junior )?(engineers|developers|teammates|team members)|seasoned|extensive experience|deep expertise|proven track record|expert[- ]level|significant experience)\b/i;
+
+// Lowest USD amount in a pay string like "$196,000-$294,000" or "$150K–$270K"; 0 when there is none or it isn't USD.
+export function payFloor(pay: string | undefined): number {
+  if (!pay || /CA\$|C\$|£|€/.test(pay)) return 0;
+  const n = [...pay.matchAll(/\$\s?(\d[\d,]*(?:\.\d+)?)\s*([kK])?/g)].map(m => parseFloat(m[1].replace(/,/g, "")) * (m[2] ? 1000 : 1)).filter(x => x >= 20000);
+  return n.length ? Math.min(...n) : 0;
+}
+
 export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: boolean; loose?: boolean } = {}): Result {
   const title = job.title.toLowerCase();
   const text = job.text;
@@ -272,16 +282,29 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   const entryText = ENTRY_TEXT.test(text);
   const requireLevel = cfg.requireLevel ?? true;
   const experienced = cfg.level === "mid" || cfg.level === "senior";
-  let level = years === null ? (entryTitle || entryText ? 50 : requireLevel ? 0 : 25) : years <= cfg.maxYears - 1 ? 45 : years <= cfg.maxYears ? 30 : 0;
+  let level = years === null ? (entryTitle || entryText ? 50 : requireLevel ? 0 : 10) : years <= cfg.maxYears - 1 ? 45 : years <= cfg.maxYears ? 30 : 0;
   if ((entryTitle || entryText) && years !== null) level = Math.min(50, level + 10);
   // Mid and senior: the best fit asks for your range of years; new-grad wording is a weaker fit, not a stronger one.
   if (experienced) {
     const min = cfg.minYears ?? 0;
     level = years === null ? (entryTitle ? 15 : 30) : years > cfg.maxYears ? 0 : years >= min ? 50 : years >= min - 1 ? 35 : 20;
   }
-  if (years === null && !entryTitle && !entryText && requireLevel) {
+  let cap = 100; // a posting that never says it's junior can't rank as a strong fit for a new grad
+  if (years === null && !entryTitle && !entryText) {
+    if (!experienced) cap = 69;
     flags.push(L("没写年限，也没写是初级岗", "No years or entry-level wording"));
-    if (!dropped && !opts.loose) dropped = "level unclear (use --loose to include)";
+    // No years stated, but the duties read senior (leading, mentoring, setting direction).
+    const senior = experienced ? null : text.match(SENIOR_TEXT);
+    const floor = payFloor(job.pay);
+    if (!senior && !experienced && floor >= 180000) {
+      level = 0; cap = 49;
+      flags.push(L(`起薪 $${Math.round(floor / 1000)}K 以上，多半不是初级岗`, `Pay starts at $${Math.round(floor / 1000)}K+, likely not entry level`));
+    }
+    if (senior) {
+      level = 0;
+      flags.push(L(`职责读起来偏资深：“${senior[0].trim()}”`, `Duties read senior: "${senior[0].trim()}"`));
+      if (!dropped && !opts.loose) dropped = `reads senior ("${senior[0].trim()}"; use --loose to include)`;
+    } else if (requireLevel && !dropped && !opts.loose) dropped = "level unclear (use --loose to include)";
   }
 
   const gradYear = cfg.graduation ? parseInt(cfg.graduation.slice(0, 4), 10) : Infinity;
@@ -301,7 +324,7 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   if (/on-?call/i.test(text)) flags.push(L("有 on-call", "Includes on-call"));
   if (/(not|unable|cannot|won't|will not)[^.]{0,30}sponsor/i.test(text)) flags.push(L("不办签证（你是否需要自己判断）", "No visa sponsorship"));
 
-  const total = clamp(0.6 * resumeScore + 0.4 * fitScore);
+  const total = Math.min(cap, clamp(0.6 * resumeScore + 0.4 * fitScore));
   const label = total >= 70 ? "Strong" : total >= 50 ? "Good" : "Stretch";
   return {
     job, score: total, resumeScore, fitScore, label, where, years,
