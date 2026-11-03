@@ -268,7 +268,7 @@ async function simplify(_company: string, token: string, o: FetchOpts): Promise<
     let d: Job | null = null;
     try { d = await postingAt(x.url, board); } catch { /* closed or unreadable: keep the list's own details */ }
     if (d === undefined) return null; // the board no longer lists it: closed
-    const note = "Listed on the SimplifyJobs new-grad list (entry level).";
+    const note = "New grad role."; // the list only has entry-level roles; plain words so it adds no "missing keyword"
     return {
       id: d?.id ?? `simplify:${x.id}`, company: x.company_name ?? d?.company ?? "", title: d?.title || x.title,
       location: d?.location || loc, remote: d?.remote || /remote/i.test(loc), url: x.url,
