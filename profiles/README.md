@@ -4,7 +4,7 @@ Each folder here is one career path. A profile tells job-radar which skills to l
 
 | Profile | For |
 |---|---|
-| `software` | Entry-level software engineering: new grad, junior, early-career engineer/developer |
+| `software` | Software engineering. New grad and early career by default; `"level": "mid"` or `"senior"` in `config.local.json` (or `npm run setup`) for more experienced roles |
 | `it` | IT support and systems administration: help desk, desktop support, IT technician, systems/network administrator, MSP |
 
 Pick one with `"profile"` in `config.local.json` (`npm run setup` asks), or try one for a single run with `--profile <name>`. A one-off run writes to `out/<name>/`, so your own report is left alone.

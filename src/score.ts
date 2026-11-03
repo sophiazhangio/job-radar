@@ -35,7 +35,9 @@ export type Config = {
   requireLevel?: boolean; // true: drop postings that state no level or years (default true)
   maxTitleLevel?: number; // highest title level kept: 1 drops "II" and up, 2 drops "III" and up (default 1)
   minScore: number;
-  maxAgeDays?: number; // drop postings first posted more than this many days ago (postings with no date are kept)
+  maxAgeDays?: number;
+  level?: "entry" | "mid" | "senior"; // see levels.ts; entry is the default
+  minYears?: number; // mid/senior: postings asking fewer years than this score lower // drop postings first posted more than this many days ago (postings with no date are kept)
 };
 
 const anyRe = (list: string[] | undefined, s: string) => (list ?? []).some(p => new RegExp(p, "i").test(s));
@@ -54,6 +56,7 @@ export function titleAllowed(title: string, cfg: Config): string | undefined {
 const ROMAN = ["i", "ii", "iii", "iv", "v", "vi"];
 function aboveLevel(n: number): RegExp {
   if (n <= 1) return NOT_ENTRY_TITLE;
+  if (n >= ROMAN.length) return /(?!)/; // no title-level limit
   const r = ROMAN.slice(n).join("|"), d = `[${n + 1}-9]`;
   return new RegExp(`\\b(${r}|${d})\\b(?!\\d)|\\bl${d}\\b|\\be${d}\\b`, "i");
 }
@@ -268,8 +271,14 @@ export function score(job: Job, resume: Resume, cfg: Config, opts: { keepAll?: b
   const entryTitle = ENTRY_TITLE.test(job.title) || (!!PROFILE.entryTitle && new RegExp(PROFILE.entryTitle, "i").test(job.title));
   const entryText = ENTRY_TEXT.test(text);
   const requireLevel = cfg.requireLevel ?? true;
+  const experienced = cfg.level === "mid" || cfg.level === "senior";
   let level = years === null ? (entryTitle || entryText ? 50 : requireLevel ? 0 : 25) : years <= cfg.maxYears - 1 ? 45 : years <= cfg.maxYears ? 30 : 0;
   if ((entryTitle || entryText) && years !== null) level = Math.min(50, level + 10);
+  // Mid and senior: the best fit asks for your range of years; new-grad wording is a weaker fit, not a stronger one.
+  if (experienced) {
+    const min = cfg.minYears ?? 0;
+    level = years === null ? (entryTitle ? 15 : 30) : years > cfg.maxYears ? 0 : years >= min ? 50 : years >= min - 1 ? 35 : 20;
+  }
   if (years === null && !entryTitle && !entryText && requireLevel) {
     flags.push(L("没写年限，也没写是初级岗", "No years or entry-level wording"));
     if (!dropped && !opts.loose) dropped = "level unclear (use --loose to include)";

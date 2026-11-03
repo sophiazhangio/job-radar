@@ -1,6 +1,8 @@
 {
   "_note": "Copy to config.local.json (or run npm run setup). Rules not listed here come from profiles/<profile>/profile.json; copy a key here to override it. lang: \"en\" or \"zh\".",
   "profile": "software",
+  "_level": "entry (new grad, early career), mid (about 2–5 years) or senior (5+ years). Adjusts the profile's title and years rules.",
+  "level": "entry",
   "resume": "./resume.pdf",
   "graduation": "2025-12",
   "maxYears": 2,

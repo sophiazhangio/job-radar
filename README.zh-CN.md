@@ -15,7 +15,7 @@
 git clone https://github.com/sophiazhangio/job-radar
 cd job-radar
 npm install
-npm run setup     # 回答几个问题：职业 profile、简历文件、城市等，生成 config.local.json
+npm run setup     # 回答几个问题：职业 profile、经验级别、简历文件、城市等，生成 config.local.json
 ```
 
 ```bash
@@ -74,7 +74,7 @@ tailor 只从你写的内容里挑选、排序、选写法，不会加你没有�
 
 ## 改设置
 
-- `config.local.json`（`npm run setup` 生成）：profile、简历路径、毕业时间（可不填）、最多几年经验、可接受的城市（`locations.label` 是报告里这组城市的名字，比如 "LA/OC"；`locations.states` 可以填整个州）、职位最多发布了几天（`maxAgeDays`，默认 30）、最低分、输出语言（`lang`：`zh` 中文，`en` 英文；也可以在命令后加 `--lang zh`）。profile 里 `defaults` 的任何规则（标题排除词等）复制到这里就能覆盖。
+- `config.local.json`（`npm run setup` 生成）：profile、经验级别 `level`（`entry` 默认，应届和初级；`mid` 约 2–5 年，II/III 级；`senior` 5 年以上，senior/staff/lead；临时试一次可以加 `--level senior`）、简历路径、毕业时间（可不填）、最多几年经验、可接受的城市（`locations.label` 是报告里这组城市的名字，比如 "LA/OC"；`locations.states` 可以填整个州）、职位最多发布了几天（`maxAgeDays`，默认 30）、最低分、输出语言（`lang`：`zh` 中文，`en` 英文；也可以在命令后加 `--lang zh`）。profile 里 `defaults` 的任何规则（标题排除词等）复制到这里就能覆盖。
 - `profiles/<名字>/profile.json`：这个职业的技能词典、标题规则和打分细节。简历或 JD 里的写法没认出来，就在这里加。
 - `profiles/<名字>/companies.json`：要抓的公司。`software` 名单偏 AI、开发者工具、金融科技和 LA 公司；`it` 名单偏橙县和 LA 的雇主。怎么找一家公司的招聘板见 [profiles/README.md](profiles/README.md)。
 - 想临时试另一个 profile：命令后加 `--profile it`，结果写到 `out/it/`，不会覆盖你自己的报告。

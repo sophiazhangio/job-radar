@@ -6,6 +6,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { stdin, stdout } from "node:process";
 import { ROOT, listProfiles } from "./skills.ts";
+import { LEVELS, PRESETS, type Level } from "./levels.ts";
 
 // Read answers line by line (works when typed, pasted or piped).
 const rl = createInterface({ input: stdin });
@@ -34,6 +35,15 @@ while (!profile) {
   if (!profile) console.log("  Not one of the profiles above.");
 }
 
+console.log("\nExperience level:");
+LEVELS.forEach((l, i) => console.log(`  ${i + 1}. ${l.padEnd(7)} ${PRESETS[l].label}`));
+let level: Level | "" = "";
+while (!level) {
+  const a = (await ask("Pick a level (number or name)", "1")).toLowerCase();
+  level = LEVELS[parseInt(a, 10) - 1] ?? LEVELS.find(l => l === a) ?? "";
+  if (!level) console.log("  Not one of the levels above.");
+}
+
 let resume = "";
 while (!resume) {
   const a = (await ask("Path to your resume (.pdf, .txt or .md). Tip: drag the file into this window", "./resume.pdf")).replace(/^['"]|['"]$/g, "").replace(/\\ /g, " ");
@@ -48,14 +58,14 @@ const states = (await ask("US states you'd work anywhere in, comma-separated, e.
   .split(",").map(s => s.trim()).filter(Boolean);
 const label = cities.length || states.length ? await ask("A short name for those places, shown in reports", "Local") : "Local";
 const defaults = JSON.parse(readFileSync(resolve(ROOT, "profiles", profile, "profile.json"), "utf8")).defaults ?? {};
-const maxYears = parseInt(await ask("Most years of experience a job may ask for", String(defaults.maxYears ?? 2)), 10);
-const graduation = await ask("Graduation month as YYYY-MM, if new-grad windows matter to you (blank = skip)", "");
+const maxYears = parseInt(await ask("Most years of experience a job may ask for", String(PRESETS[level].maxYears ?? defaults.maxYears ?? 2)), 10);
+const graduation = level === "entry" ? await ask("Graduation month as YYYY-MM, if new-grad windows matter to you (blank = skip)", "") : "";
 const lang = (await ask("Report language: en or zh", "en")) === "zh" ? "zh" : "en";
 rl.close();
 
 const cfg: Record<string, unknown> = {
   _note: `Your settings. Rules not listed here come from profiles/${profile}/profile.json; copy a key here to override it.`,
-  profile, resume,
+  profile, level, resume,
   ...(graduation ? { graduation } : {}),
   maxYears,
   locations: { remoteUS, cities, ...(states.length ? { states } : {}), label },

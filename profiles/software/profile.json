@@ -1,6 +1,6 @@
 {
   "name": "software",
-  "description": "Entry-level software engineering: new grad, junior and early-career engineer/developer roles.",
+  "description": "Software engineering: new grad and early career by default; set \"level\" to mid or senior for more experienced roles",
   "skills": [
     {"name": "TypeScript", "pattern": "\\btypescript\\b", "core": true},
     {"name": "JavaScript", "pattern": "\\bjavascript\\b|\\bes6\\b", "core": true},
@@ -154,8 +154,8 @@
       "strategic",
       "account",
       "customer success",
-      "evangelist"
-    ],
+      "evangelist",
+      "fire protection", "controls engineer", "field service", "power generation", "substation", "data center", "legal engineer", "people partner", "facilities", "construction", "civil engineer", "structural", "manufacturing", "process engineer"],
     "excludeText": ["security clearance", "ts/sci", "secret clearance", "itar", "department of defense", "dod ", "defense"],
     "includeTitle": ["engineer", "developer", "swe"],
     "requireLevel": true,

@@ -17,6 +17,7 @@ import { score, titleAllowed, NON_US, US, type Config, type Result, type Resume 
 import { toHtml } from "./html.ts";
 import { loadTracked, makeLookup, statusLabel, FINISHED } from "./tracked.ts";
 import { L, setLang } from "./i18n.ts";
+import { LEVELS, levelRules, type Level } from "./levels.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -39,7 +40,10 @@ setLang(opt("lang") ?? local.lang);
 const profileName = opt("profile") ?? local.profile ?? "software";
 let profile;
 try { profile = useProfile(profileName); } catch (e: any) { console.error(e.message); process.exit(1); }
-const cfg: Settings = { ...(profile.defaults as object), ...local, profile: profileName } as Settings;
+// An experience level ("level": entry | mid | senior, or --level) adjusts the profile's rules first.
+const level = (opt("level") ?? (local as any).level) as Level | undefined;
+if (level && !LEVELS.includes(level)) { console.error(`Unknown level "${level}". Use one of: ${LEVELS.join(", ")}`); process.exit(1); }
+const cfg: Settings = { ...(profile.defaults as object), ...levelRules((profile.defaults ?? {}) as Record<string, unknown>, level), ...local, ...(level ? { level } : {}), profile: profileName } as Settings;
 // A one-off --profile run that differs from your config writes to out/<profile>/ so your own report stays as it is.
 const oneOff = profileName !== (local.profile ?? "software");
 const OUT = oneOff ? `out/${profileName}` : "out";
@@ -96,7 +100,9 @@ function toMarkdown(rs: Result[], seen: Set<string>, date: string, total: number
 
 async function scan() {
   const resume = await loadResume();
-  const { companies } = JSON.parse(await readFile(companiesFile, "utf8"));
+  const boards: string[][] = JSON.parse(await readFile(companiesFile, "utf8")).companies;
+  // The SimplifyJobs list only has new-grad roles, so mid and senior searches skip it.
+  const companies = level === "mid" || level === "senior" ? boards.filter(c => c[1] !== "simplify") : boards;
   const only = opt("company")?.toLowerCase();
   const list = only ? companies.filter((c: string[]) => c[0].toLowerCase().includes(only)) : companies;
   const errors: string[] = [];
