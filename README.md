@@ -28,6 +28,7 @@ npm run setup
 `npm run setup` asks for your career profile, your experience level (entry, mid or senior), your resume file, the cities you would work in and a few limits, then writes `config.local.json` (kept out of git). You can edit that file later, or start from `config.example.json` instead. Then:
 
 ```bash
+npm run help                      # list every command; npm run help -- scan for one command
 npm run scan                      # fetch every company, score, write reports
 npm run open                      # open out/report.html
 npm run match -- <posting URL>    # score one posting (Greenhouse/Ashby/Lever URLs work best)

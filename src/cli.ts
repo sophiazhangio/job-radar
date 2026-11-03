@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 // job-radar: pull entry-level postings from public job boards and score them against your resume.
-//
-//   node src/cli.ts scan [--top 30] [--all] [--anywhere] [--company Quora] [--dump]
-//   node src/cli.ts match <job URL or .txt file>
-//   node src/cli.ts tailor <job URL or .txt file> [--bank bank.json] [--no-pdf]
-//   node src/cli.ts skills
+// Commands and options: npm run help (the list lives in src/help.ts).
 
 import { readFile, writeFile, mkdir, readdir, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -18,6 +14,7 @@ import { toHtml } from "./html.ts";
 import { loadTracked, makeLookup, statusLabel, FINISHED } from "./tracked.ts";
 import { L, setLang } from "./i18n.ts";
 import { LEVELS, levelRules, type Level } from "./levels.ts";
+import { showHelp } from "./help.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -27,7 +24,9 @@ const opt = (name: string) => { const i = args.indexOf(`--${name}`); return i >=
 
 // Personal settings live in config.local.json (gitignored); config.example.json is the template.
 // dump, profiles and new-profile also work before setup, using the example config.
-const NO_SETUP = ["dump", "profiles", "new-profile", "add-company", "help"].includes(cmd);
+// --help / -h on any command shows that command's help and needs no config either.
+const wantsHelp = cmd === "help" || cmd === "--help" || args.includes("--help") || args.includes("-h");
+const NO_SETUP = wantsHelp || ["dump", "profiles", "new-profile", "add-company"].includes(cmd);
 const cfgPath = ["config.local.json", "config.json", ...(NO_SETUP ? ["config.example.json"] : [])].map(f => resolve(ROOT, f)).find(f => existsSync(f));
 if (!cfgPath) {
   console.error("No config.local.json yet. Run the setup, which asks a few questions:\n  npm run setup\n(or copy config.example.json to config.local.json and edit it)");
@@ -314,7 +313,8 @@ async function openReport() {
   spawn(c, a as string[], { stdio: "ignore", detached: true }).unref();
 }
 
-if (cmd === "scan") await scan();
+if (wantsHelp) showHelp(cmd === "help" ? args[1] : cmd.startsWith("-") ? undefined : cmd);
+else if (cmd === "scan") await scan();
 else if (cmd === "profiles") showProfiles();
 else if (cmd === "dump") await dumpOnly();
 else if (cmd === "new-profile") { const { newProfile } = await import("./newprofile.ts"); await newProfile(args.slice(1)); }
@@ -324,32 +324,4 @@ else if (cmd === "match") await match();
 else if (cmd === "tailor") await tailor();
 else if (cmd === "applied") { const { applied } = await import("./applied.ts"); await applied({ args, opt, root: ROOT, cfg: cfg as any, getJob, scoreJob: async j => score(j, await loadResume(), cfg, { keepAll: true }) }); }
 else if (cmd === "skills") await showSkills();
-else console.log(L(`用法：
-  npm run scan                      抓所有公司，按匹配度排序，写报告到 out/
-  npm run scan -- --top 50          终端多显示几个
-  npm run scan -- --company quora   只抓某家公司
-  npm run scan -- --loose           也显示没写级别/年限的职位
-  npm run scan -- --anywhere        不限地点
-  npm run scan -- --all             不过滤，全部打分（调试用）
-  npm run scan -- --dump            另外把抓到的所有职位写到 out/all/日期.jsonl
-  npm run match -- <链接或txt>      给单个职位打分
-  npm run tailor -- <链接或txt>     从素材库为这个职位生成一页简历（HTML + PDF）
-  npm run skills                    看简历里认出了哪些技能
-  npm run profiles                  看有哪些职业 profile
-  npm run setup                     回答几个问题，生成 config.local.json
-  任何命令加 --profile <名字> 临时换一个 profile
-  任何命令加 --lang en 或 --lang zh 切换输出语言`, `Usage:
-  npm run scan                      fetch every board, rank, write reports to out/
-  npm run scan -- --top 50          show more results in the terminal
-  npm run scan -- --company quora   one company only
-  npm run scan -- --loose           include postings with no level or years stated
-  npm run scan -- --anywhere        ignore location
-  npm run scan -- --all             no filtering (debugging)
-  npm run scan -- --dump            also write every fetched posting to out/all/<date>.jsonl
-  npm run match -- <URL or .txt>    score one posting
-  npm run tailor -- <URL or .txt>   build a one-page resume for it from your bullet bank (HTML + PDF)
-  npm run skills                    show skills found in your resume
-  npm run profiles                  list career profiles
-  npm run setup                     answer a few questions to write config.local.json
-  Add --profile <name> to use another profile for one run.
-  Add --lang en or --lang zh to any command to switch the output language.`));
+else { showHelp(undefined, cmd); process.exit(1); }

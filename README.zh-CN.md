@@ -19,6 +19,7 @@ npm run setup     # 回答几个问题：职业 profile、经验级别、简历�
 ```
 
 ```bash
+npm run help                      # 列出所有命令；npm run help -- scan 看单个命令的参数
 npm run scan                      # 抓全部公司，按匹配度排序，报告写到 out/日期.md
 npm run scan -- --top 50          # 终端多显示几个
 npm run scan -- --company quora   # 只抓某家公司

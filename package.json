@@ -8,6 +8,7 @@
     "node": ">=23.6"
   },
   "scripts": {
+    "help": "node src/cli.ts help",
     "setup": "node src/setup.ts",
     "bank": "node src/bank.ts",
     "scan": "node src/cli.ts scan",
