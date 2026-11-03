@@ -10,7 +10,7 @@ A local command-line tool that pulls job postings straight from employers' publi
 - **Output:** a filterable HTML report, a Markdown/JSON report, and a short list in the terminal.
 - **Tailored resumes:** `npm run tailor` builds a one-page resume for one posting from a bank of bullets you wrote, choosing the ones that match it best. No AI; it never writes new claims.
 - **Private:** everything runs on your computer. Your resume, settings and results never leave it.
-- **Cost:** free. Scanning and scoring use no AI or paid API (only the optional `new-profile` draft uses a local model); one run of ~100 companies (~11,000 postings) takes about 10 seconds.
+- **Cost:** free. Scanning and scoring use no AI or paid API (only the optional `new-profile` draft uses a local model); a full run (~100 company boards plus the SimplifyJobs list, ~11,500 postings) takes under a minute.
 
 > Output is in English by default. Set `"lang": "zh"` in `config.local.json` (or pass `--lang zh`) for Chinese.
 
@@ -41,16 +41,37 @@ npm run new-profile -- <name> "<description>"   # draft a new career profile wit
 npm run add-company -- <profile> <careers page URL>  # add one employer's job board, after checking it works
 ```
 
+Run commands from inside the `job-radar` folder, and put links in quotes (`"https://...?src=Linkedin"`): in zsh, the default Mac shell, a `?` in an unquoted link fails with *no matches found*.
+
 Run `npm run skills` first: if a skill you have is not found, add it to your resume in plain words or add an alias to your profile's `skills`.
 
-Useful `scan` flags: `--top 50` (show more in the terminal), `--company quora` (one company), `--loose` (include postings that state no level or years), `--anywhere` (ignore location), `--all` (no filtering, for debugging), `--dump` (also write every fetched posting to `out/all/<date>.jsonl`).
+Useful `scan` flags: `--top 50` (show more in the terminal), `--company quora` (one company), `--level senior` (one run at another experience level), `--profile it` (one run with another career profile, written to `out/it/`), `--loose` (include postings that state no level or years), `--anywhere` (ignore location), `--all` (no filtering, for debugging), `--dump` (also write every fetched posting to `out/all/<date>.jsonl`).
 
 ## What a run produces
 
-- `out/report.html`: overwritten on every run. Filter by location and match level, sort by score or date, search, and expand a posting to see matched skills, missing skills and keywords.
+- `out/report.html`: overwritten on every run. Filter by location, match level and when it was posted (past 24 hours, 3 days, week, 2 weeks or month), sort by score or date, search, and expand a posting to see matched skills, missing skills and keywords.
 - `out/<date>.md` and `out/<date>.json`: kept for `keepDays` days (default 7).
 - `out/all/<date>.jsonl` (only with `--dump` or `"dump": true` in the config): every fetched posting, one JSON object per line (`id, company, title, location, remote, url, posted, pay, description`). Kept for `dumpKeepDays` days (default 30). Profiles other than `software` write to `out/all/<profile>/` instead. [echolocate](https://github.com/sophiazhangio/echolocate) reads these for semantic search and skill trends.
 - A posting is marked **NEW** on the day it first shows up (`.cache/seen.json`).
+
+## Choosing what to see
+
+All of these live in `config.local.json`; `npm run setup` asks for the first two.
+
+- **Experience level** (`"level"`):
+
+  | | `entry` (default) | `mid` | `senior` |
+  |---|---|---|---|
+  | Titles | drops senior, staff, lead and level II+ | allows level II/III and mid-level; drops new grad | allows senior, staff, lead, principal; drops junior and new grad |
+  | Years asked | up to 2 | 2–5 score best | 5+ score best |
+  | Postings that state no level | dropped | kept | kept |
+  | SimplifyJobs new-grad list | used | skipped | skipped |
+
+  Managers, directors and interns are dropped at every level. Try a level once with `npm run scan -- --level mid`.
+- **Where** (`"locations"`): `remoteUS` for remote jobs in the US, `cities` for text found in the location ("irvine", "santa monica"), and `states` for whole US states (`["CA", "WA"]` or `["California"]`; "Toronto, ON, CA" is not California). `label` names your list in reports.
+- **How recent** (`"maxAgeDays"`, default 30): postings first posted longer ago are hidden. Postings with no date are kept. The report's *Posted* filter narrows it further.
+- **Which employers**: the profile's `companies.json`. Saw a posting on LinkedIn that job-radar missed? Open it, follow the link to the company's own job page, and add that company: `npm run add-company -- software "<that link>"`. From then on all its postings are included. Supported boards are listed in [profiles/README.md](profiles/README.md).
+- **The SimplifyJobs list** (`software` profile): a community-kept list of new-grad postings from hundreds of companies, refreshed daily, which catches many jobs from companies not on your list. It is the `simplify` line in `companies.json`; delete that line to turn it off, or change `days=30` to look further back.
 
 ## How scoring works
 
@@ -64,7 +85,7 @@ Each posting gets two scores out of 100.
 - Shown with a count, e.g. `89 (5/6 required)`, and flagged when a posting names only one or two skills.
 
 **Fit score**: whether the posting fits what you want.
-- Level (50): entry-level wording or years within your `maxYears` score high; the top of your range partly.
+- Level (50): entry-level wording or years within your `maxYears` score high; the top of your range partly. At `mid` and `senior`, postings asking for years in your range score highest and new-grad postings lower.
 - Location (30): remote in the US or one of your cities.
 - Profile bonus (20): for `software`, mentions of Claude Code, Codex or Cursor score full and LLMs or agents partly; for `it`, Microsoft 365, Windows Server, Azure and MSP work.
 - If you set a graduation month, a graduation window that seems to exclude you costs 40.
@@ -73,7 +94,7 @@ Each posting gets two scores out of 100.
 
 **Keywords missing from your resume**: technical terms and phrases that appear in the posting's requirements but nowhere in your resume (e.g. "design systems", "cloudflare workers"), useful when tailoring a resume.
 
-Filtered out before scoring (rules come from the profile): titles outside the profile (for `software`: senior/staff/lead/manager, level II and up, internships, embedded/hardware; for `it`: senior/lead/manager, level III and up, non-IT technicians), postings that mention security clearances or defense, locations outside your list, more years than `maxYears`, and, for `software`, postings with no level or years stated (see them with `--loose`).
+Filtered out before scoring (rules come from the profile, adjusted by your `level`): titles outside the profile (for `software` at entry level: senior/staff/lead/manager, level II and up, internships, embedded/hardware; for `it`: senior/lead/manager, level III and up, non-IT technicians), postings that mention security clearances or defense, locations outside your list, more years than `maxYears`, postings first posted more than `maxAgeDays` days ago, and, for `software` at entry level, postings with no level or years stated (see them with `--loose`).
 
 It is keyword matching and does not understand meaning. Use the score to decide what to read first, not whether to apply.
 

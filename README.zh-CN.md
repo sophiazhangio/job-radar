@@ -4,7 +4,7 @@
 
 从雇主公开的招聘板（Greenhouse、Ashby、Lever、Workday、SmartRecruiters、BambooHR、Oracle 的公开 API），以及社区维护、每天更新的 [SimplifyJobs 应届生职位列表](https://github.com/SimplifyJobs/New-Grad-Positions)（补上你名单之外几百家公司的新职位）抓职位，再用关键词规则跟你的简历比对打分。只在本地运行，不登录任何网站，不投递，不填表，简历和结果都不离开你的电脑。
 
-**职业 profile**：选你要找的工作类型。目前有 `software`（入门级软件工程）和 `it`（IT 支持和系统管理）。一个 profile 就是两个 JSON 文件，加新职业不用改代码，见 [profiles/](profiles/README.md)。
+**职业 profile**：选你要找的工作类型。目前有 `software`（软件工程，默认找应届和初级，可以改成 mid 或 senior）和 `it`（IT 支持和系统管理）。一个 profile 就是两个 JSON 文件，加新职业不用改代码，见 [profiles/](profiles/README.md)。
 
 ## 用法
 
@@ -23,6 +23,7 @@ npm run scan                      # 抓全部公司，按匹配度排序，报�
 npm run scan -- --top 50          # 终端多显示几个
 npm run scan -- --company quora   # 只抓某家公司
 npm run scan -- --loose           # 也显示没写级别/年限的职位
+npm run scan -- --level senior    # 临时按另一个经验级别找一次（entry / mid / senior）
 npm run scan -- --dump            # 另外把抓到的所有职位写到 out/all/日期.jsonl
 npm run match -- <职位链接>       # 给单个职位打分（Greenhouse/Ashby/Lever 链接最准，其他网页也能试）
 npm run match -- job.txt          # 把 JD 复制进 txt 文件也行
@@ -36,8 +37,10 @@ npm run add-company -- <profile> <招聘页链接>  # 加一家公司的招聘�
 npm run open                      # 打开网页报告
 ```
 
+命令要在 `job-radar` 文件夹里运行。链接要加引号（`"https://...?src=Linkedin"`）：Mac 默认的 zsh 里，没加引号的链接带 `?` 会报 *no matches found*。
+
 每次 `scan` 都会生成：
-- `out/report.html`：网页报告，每次覆盖成最新结果。`npm run open` 或双击打开，可以按地点、匹配度筛选，按分数或日期排序，搜索，点开看详情。纯本地文件，不联网，不用 AI。
+- `out/report.html`：网页报告，每次覆盖成最新结果。`npm run open` 或双击打开，可以按地点、匹配度、发布时间（24 小时、3 天、一周、两周、一个月内）筛选，按分数或日期排序，搜索，点开看详情。纯本地文件，不联网，不用 AI。
 - `out/日期.md` 和 `out/日期.json`：文字版报告，保留最近 `keepDays` 天（默认 7，在 `config.local.json` 里改；设成 0 只留当天）。
 - `out/all/日期.jsonl`：只在加 `--dump` 或配置里 `"dump": true` 时生成，抓到的全部职位，一行一个 JSON。保留 `dumpKeepDays` 天（默认 30）。[echolocate](https://github.com/sophiazhangio/echolocate) 用它做语义搜索和技能趋势。
 
@@ -79,6 +82,25 @@ tailor 只从你写的内容里挑选、排序、选写法，不会加你没有�
 - `profiles/<名字>/companies.json`：要抓的公司。`software` 名单偏 AI、开发者工具、金融科技和 LA 公司；`it` 名单偏橙县和 LA 的雇主。怎么找一家公司的招聘板见 [profiles/README.md](profiles/README.md)。
 - 想临时试另一个 profile：命令后加 `--profile it`，结果写到 `out/it/`，不会覆盖你自己的报告。
 
+## 选你想看的职位
+
+都在 `config.local.json` 里，前两项 `npm run setup` 会问。
+
+- **经验级别**（`"level"`）：
+
+  | | `entry`（默认） | `mid` | `senior` |
+  |---|---|---|---|
+  | 标题 | 去掉 senior、staff、lead 和 II 级以上 | 留 II/III 级和 mid-level，去掉 new grad | 留 senior、staff、lead、principal，去掉 junior 和 new grad |
+  | 要求年限 | 最多 2 年 | 2–5 年最高分 | 5 年以上最高分 |
+  | 没写级别的职位 | 去掉 | 保留 | 保留 |
+  | SimplifyJobs 应届生列表 | 用 | 不用 | 不用 |
+
+  manager、director、实习在每个级别都会去掉。想临时试一次：`npm run scan -- --level mid`。
+- **地点**（`"locations"`）：`remoteUS` 是美国远程，`cities` 是地点里出现的城市名（"irvine"、"santa monica"），`states` 是整个州（`["CA", "WA"]` 或 `["California"]`；"Toronto, ON, CA" 不算加州）。`label` 是报告里这组地点的名字。
+- **多新的职位**（`"maxAgeDays"`，默认 30）：第一次发布超过这么多天的职位不显示；没写日期的保留。网页报告里的「发布时间」筛选可以再缩小。
+- **哪些公司**：profile 的 `companies.json`。在 LinkedIn 上看到 job-radar 没抓到的职位？点进去找到公司自己的招聘页链接，然后 `npm run add-company -- software "<那个链接>"`，以后这家公司的职位都会抓。支持哪些招聘系统见 [profiles/README.md](profiles/README.md)。
+- **SimplifyJobs 列表**（`software` profile）：社区维护、每天更新的应届生职位列表，覆盖几百家公司，能补上你名单之外的很多新职位。就是 `companies.json` 里 `simplify` 那一行，删掉就不用；把 `days=30` 改大可以往前多看几天。
+
 ## 打分怎么算
 
 每个职位有两个分数，满分都是 100：
@@ -91,7 +113,7 @@ tailor 只从你写的内容里挑选、排序、选写法，不会加你没有�
 - 显示为「简历 89（必须项对上 5/6）」。职位只写了一两个技能时，分数参考价值低，会有提示。
 
 **条件分**：职位合不合你的求职条件。
-- 级别 50：写了初级岗字眼，或要求年限在你的 `maxYears` 以内得高分，刚好到上限给一部分。
+- 级别 50：写了初级岗字眼，或要求年限在你的 `maxYears` 以内得高分，刚好到上限给一部分。`mid` 和 `senior` 下，要求年限在你范围内的最高，应届岗反而低。
 - 地点 30：远程（美国）或你的城市。
 - profile 加分 20：`software` 看 Claude Code / Codex / Cursor（满分）和 LLM、agent（一部分）；`it` 看 Microsoft 365、Windows Server、Azure 和 MSP 经验。
 - 填了毕业时间时，毕业时间窗口看起来不包含你，-40。
@@ -100,7 +122,7 @@ tailor 只从你写的内容里挑选、排序、选写法，不会加你没有�
 
 **简历里没有的词**：职位要求里出现、但你简历里一次都没出现的技术词和短语（比如 "design systems"、"cloudflare workers"）。很多公司先用招聘系统按关键词筛简历，可以把这些词交给改简历时参考。
 
-直接过滤掉的（规则来自 profile）：不属于这个职业的标题（`software`：Senior/Staff/Lead、II 级以上、实习、嵌入式/硬件；`it`：Senior/Lead/Manager、III 级以上、非 IT 的技术员）、提到安全审查或国防、地点不符、年限超过 `maxYears`，以及 `software` 下没写级别也没写年限的（用 `--loose` 可以看到）。
+直接过滤掉的（规则来自 profile，再按你的 `level` 调整）：不属于这个职业的标题（`software` 的 entry 级别：Senior/Staff/Lead、II 级以上、实习、嵌入式/硬件；`it`：Senior/Lead/Manager、III 级以上、非 IT 的技术员）、提到安全审查或国防、地点不符、年限超过 `maxYears`、第一次发布超过 `maxAgeDays` 天的，以及 `software` entry 级别下没写级别也没写年限的（用 `--loose` 可以看到）。
 
 这是关键词规则，不懂语义。分数只用来排序，投之前请自己读 JD。
 
