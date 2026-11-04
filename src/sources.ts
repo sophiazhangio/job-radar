@@ -414,7 +414,9 @@ async function fetchPage(url: string): Promise<Job> {
   const html = await r.text();
   const site = decode(html.match(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)/i)?.[1] ?? "").trim();
   const host = new URL(url).hostname.replace(/^(www|careers?|jobs?|apply|recruiting|talent|hire)\./, "").split(".")[0];
-  const company = site && site.length <= 40 ? site : host;
+  // "Careers at Airbnb", "Airbnb Careers", "Jobs | Airbnb" → "Airbnb"
+  const clean = site.replace(/^(careers?|jobs?)\s*(at|@|[-–—|:])\s*/i, "").replace(/\s*([-–—|:]\s*)?(careers?|jobs?)(\s+(page|site))?$/i, "").trim();
+  const company = clean && clean.length <= 40 ? clean : host;
   const raw = decode((html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i)?.[1] ?? html.match(/<title[^>]*>([^<]*)/i)?.[1] ?? "")).trim();
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const title = raw
